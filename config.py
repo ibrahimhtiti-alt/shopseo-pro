@@ -80,19 +80,26 @@ class AppConfig(BaseModel):
 
     @staticmethod
     def load_from_env() -> Optional["AppConfig"]:
-        """Load configuration from the *.env* file.
+        """Load configuration from the *.env* file or OS environment variables.
 
-        Returns ``None`` when the file does not exist or the mandatory keys
-        are missing / empty.
+        First tries the .env file, then falls back to os.environ (Docker).
+        Returns ``None`` when mandatory keys are missing / empty.
         """
-        if not ENV_PATH.exists():
-            return None
+        import os
 
-        values = dotenv_values(str(ENV_PATH))
+        # Read from .env file if it exists
+        file_values = dotenv_values(str(ENV_PATH)) if ENV_PATH.exists() else {}
 
-        shopify_store_url = values.get("SHOPIFY_STORE_URL", "").strip()
-        shopify_access_token = values.get("SHOPIFY_ACCESS_TOKEN", "").strip()
-        anthropic_api_key = values.get("ANTHROPIC_API_KEY", "").strip()
+        # Helper: try .env file first, then OS environment
+        def _get(key: str, default: str = "") -> str:
+            val = file_values.get(key, "").strip()
+            if not val:
+                val = os.environ.get(key, default).strip()
+            return val
+
+        shopify_store_url = _get("SHOPIFY_STORE_URL")
+        shopify_access_token = _get("SHOPIFY_ACCESS_TOKEN")
+        anthropic_api_key = _get("ANTHROPIC_API_KEY")
 
         if not shopify_store_url or not shopify_access_token or not anthropic_api_key:
             return None
@@ -101,8 +108,8 @@ class AppConfig(BaseModel):
             shopify_store_url=shopify_store_url,
             shopify_access_token=shopify_access_token,
             anthropic_api_key=anthropic_api_key,
-            shopify_api_version=values.get("SHOPIFY_API_VERSION", "2024-10").strip(),
-            storefront_url=values.get("STOREFRONT_URL", "").strip(),
-            google_credentials_path=values.get("GOOGLE_CREDENTIALS_PATH", "").strip(),
-            ai_provider=values.get("AI_PROVIDER", "anthropic").strip(),
+            shopify_api_version=_get("SHOPIFY_API_VERSION", "2025-01"),
+            storefront_url=_get("STOREFRONT_URL"),
+            google_credentials_path=_get("GOOGLE_CREDENTIALS_PATH"),
+            ai_provider=_get("AI_PROVIDER", "anthropic"),
         )
