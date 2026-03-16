@@ -13,7 +13,8 @@ services:
       # Persistente Daten (Backups, DB)
       - shopseo-data:/app/data
       # Google Credentials (falls vorhanden auf dem Host)
-      - ./seo-3-490410-854815eb2dcb.json:/app/seo-3-490410-854815eb2dcb.json:ro
+      # Dateiname muss mit dem GOOGLE_CREDENTIALS_PATH in .env übereinstimmen
+      - ./google-credentials.json:/app/google-credentials.json:ro
     environment:
       - TZ=Europe/Berlin
 

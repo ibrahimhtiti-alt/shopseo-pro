@@ -80,13 +80,10 @@ git add . && git commit -m "Beschreibung" && git push
 cd /opt/shopseo-pro && git pull && docker compose up -d --build
 ```
 
-## Zugangsdaten (Referenz)
-- **App-Login:** admin / seo-admin-2024
-- **Shopify Store:** myvapez-de.myshopify.com
-- **KI-Provider:** OpenRouter
-- **Google Credentials (VPS):** /app/seo-3-490410-854815eb2dcb.json
-- **Google Credentials (lokal):** seo-3-490410-854815eb2dcb.json
-- Alle API-Keys stehen in der lokalen `.env` Datei
+## Zugangsdaten
+- Alle Credentials stehen in der lokalen `.env` Datei (nie committen!)
+- Login-Daten und API-Keys: siehe `ANLEITUNG-FÜR-IBO.txt` (nicht im Repo)
+- Google Credentials JSON: Pfad wird in `.env` unter `GOOGLE_CREDENTIALS_PATH` konfiguriert
 
 ## Bekannte Besonderheiten
 - **Gemini JSON-Bug:** Gemini gibt manchmal unescapte Newlines in JSON-Strings zurück → `ai_engine.py` hat einen Character-by-Character JSON-Repair (Strategy 3 in `_extract_balanced_json`)

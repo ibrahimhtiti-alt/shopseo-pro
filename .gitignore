@@ -40,9 +40,13 @@ desktop.ini
 
 # Google credentials (NIEMALS committen!)
 credentials.json
+google-credentials.json
 token.json
 token.pickle
 seo-*.json
+
+# Persoenliche Anleitung mit Zugangsdaten
+ANLEITUNG-*.txt
 
 # Streamlit
 .streamlit/secrets.toml
