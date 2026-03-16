@@ -1,0 +1,54 @@
+# Environment / Secrets
+.env
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# App data (Datenbanken)
+backups.db
+backups.db-shm
+backups.db-wal
+ranking_history.json
+*.db
+*.sqlite3
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+
+# Google credentials (NIEMALS committen!)
+credentials.json
+token.json
+token.pickle
+seo-*.json
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Claude Code
+.claude/
+
+# Docker volumes
+data/

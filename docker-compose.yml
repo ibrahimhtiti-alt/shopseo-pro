@@ -1,0 +1,19 @@
+version: "3.8"
+
+services:
+  shopseo-pro:
+    build: .
+    container_name: shopseo-pro
+    restart: unless-stopped
+    ports:
+      - "8501:8501"
+    env_file:
+      - .env
+    volumes:
+      # Persistente Daten (Backups, DB)
+      - shopseo-data:/app/data
+    environment:
+      - TZ=Europe/Berlin
+
+volumes:
+  shopseo-data:
