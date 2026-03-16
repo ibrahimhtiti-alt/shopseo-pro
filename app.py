@@ -472,20 +472,15 @@ hr {
 # Constants
 # ---------------------------------------------------------------------------
 
-_DEFAULT_ADMIN_USER = "admin"
-_DEFAULT_ADMIN_PASS_HASH = hashlib.sha256("seo-admin-2024".encode()).hexdigest()
+_ADMIN_USER = os.environ.get("ADMIN_USERNAME", "")
+_ADMIN_PASS_HASH = os.environ.get("ADMIN_PASSWORD_HASH", "")
 
-_ADMIN_USER = os.environ.get("ADMIN_USERNAME", _DEFAULT_ADMIN_USER)
-_ADMIN_PASS_HASH = os.environ.get("ADMIN_PASSWORD_HASH", _DEFAULT_ADMIN_PASS_HASH)
-
-_USING_DEFAULT_CREDENTIALS = (
-    _ADMIN_USER == _DEFAULT_ADMIN_USER and _ADMIN_PASS_HASH == _DEFAULT_ADMIN_PASS_HASH
-)
+_USING_DEFAULT_CREDENTIALS = not _ADMIN_USER or not _ADMIN_PASS_HASH
 
 if _USING_DEFAULT_CREDENTIALS:
     logging.warning(
-        "ADMIN_USERNAME / ADMIN_PASSWORD_HASH not set in environment. "
-        "Using insecure default credentials."
+        "ADMIN_USERNAME / ADMIN_PASSWORD_HASH nicht in .env gesetzt. "
+        "Login ist deaktiviert bis Credentials konfiguriert sind."
     )
 
 _TITLE_MAX = 60
@@ -569,10 +564,16 @@ def _show_login() -> None:
         )
 
         if _USING_DEFAULT_CREDENTIALS:
-            st.warning(
-                "Standardzugangsdaten aktiv. Bitte setzen Sie ADMIN_USERNAME und "
-                "ADMIN_PASSWORD_HASH in der .env-Datei."
+            st.error(
+                "⛔ Login deaktiviert. Setze `ADMIN_USERNAME` und "
+                "`ADMIN_PASSWORD_HASH` in der `.env`-Datei um den Zugang zu aktivieren."
             )
+            st.info(
+                "**Passwort-Hash erzeugen:**\n"
+                "```python\nimport hashlib\n"
+                "print(hashlib.sha256('dein-passwort'.encode()).hexdigest())\n```"
+            )
+            return
 
         with st.form("login_form"):
             username = st.text_input("Benutzername")
