@@ -1654,10 +1654,16 @@ def _render_tab_batch() -> None:
         st.info("Bitte zuerst die Shopify-Verbindung testen.")
         return
 
+    # --- Smart Review Queue (takes over the tab when active) ---
+    smart_phase = st.session_state.get("_smart_queue_phase")
+    if smart_phase in ("review", "summary"):
+        _render_smart_review(cfg)
+        return
+
     st.markdown("### Batch-Analyse & Bulk-Optimierung")
     st.caption(
         "Analysiere und optimiere mehrere Produkte gleichzeitig per KI. "
-        "Filtere z.B. nach 'elfbar elfa' um alle ELFA-Produkte auf einmal zu optimieren."
+        "Wähle Produkte per Checkbox aus und nutze 'Ausgewählte optimieren' für die Freigabe-Queue."
     )
 
     # --- Show bulk optimization results first (always visible) ---
@@ -1759,21 +1765,48 @@ def _render_tab_batch() -> None:
         else:
             st.metric("Zu verarbeiten", len(pending_items))
 
-    # Show filtered product list with optimization status
-    with st.expander(f"Gefilterte Produkte anzeigen ({len(filtered_items)})", expanded=False):
+    # Show filtered product list with checkboxes for selection
+    with st.expander(f"Produkte auswählen ({len(filtered_items)})", expanded=False):
+        # Select all / none toggle
+        sel_col1, sel_col2 = st.columns([1, 1])
+        with sel_col1:
+            if st.button("✅ Alle auswählen", key="smart_select_all", use_container_width=True):
+                for item in display_items[:50]:
+                    st.session_state[f"smart_sel_{item['id']}"] = True
+                st.rerun()
+        with sel_col2:
+            if st.button("❌ Keine auswählen", key="smart_select_none", use_container_width=True):
+                for item in display_items[:50]:
+                    st.session_state[f"smart_sel_{item['id']}"] = False
+                st.rerun()
+
+        st.divider()
         for i, item in enumerate(display_items[:50]):
             last_opt = item.get("_last_optimized")
             if last_opt:
-                # Parse and format timestamp
                 try:
-                    ts = last_opt[:10]  # YYYY-MM-DD
+                    ts = last_opt[:10]
                 except Exception:
                     ts = "kürzlich"
-                st.text(f"  {i+1}. {item['title']}  [optimiert: {ts}]")
+                label = f"{item['title']}  ·  optimiert: {ts}"
             else:
-                st.text(f"  {i+1}. {item['title']}")
+                label = item["title"]
+            st.checkbox(
+                label,
+                key=f"smart_sel_{item['id']}",
+                value=st.session_state.get(f"smart_sel_{item['id']}", False),
+            )
         if len(display_items) > 50:
             st.caption(f"... und {len(display_items) - 50} weitere")
+
+    # Count selected items
+    selected_ids = {
+        item["id"] for item in display_items[:50]
+        if st.session_state.get(f"smart_sel_{item['id']}", False)
+    }
+    selected_items = [it for it in display_items if it["id"] in selected_ids]
+    if selected_ids:
+        st.caption(f"**{len(selected_ids)}** Produkt(e) ausgewählt")
 
     if not pending_items:
         st.success(
@@ -1792,7 +1825,7 @@ def _render_tab_batch() -> None:
     )
 
     # --- Action buttons ---
-    action_col1, action_col2 = st.columns(2)
+    action_col1, action_col2, action_col3 = st.columns(3)
 
     with action_col1:
         analyze_clicked = st.button(
@@ -1805,10 +1838,21 @@ def _render_tab_batch() -> None:
     with action_col2:
         optimize_clicked = st.button(
             "Alle optimieren (KI)",
-            type="primary",
+            type="secondary",
             use_container_width=True,
             key="btn_bulk_optimize",
             help="Analysiert UND optimiert alle gefilterten Produkte automatisch per KI",
+        )
+
+    with action_col3:
+        smart_count = len(selected_ids) if 'selected_ids' in dir() else 0
+        smart_clicked = st.button(
+            f"Ausgewählte optimieren ({smart_count})",
+            type="primary",
+            use_container_width=True,
+            disabled=smart_count == 0,
+            key="btn_smart_optimize",
+            help="Optimiert nur die ausgewählten Produkte und zeigt eine Freigabe-Queue",
         )
 
     # --- Batch Analysis (score only) ---
@@ -1856,6 +1900,10 @@ def _render_tab_batch() -> None:
     # --- Bulk KI-Optimization ---
     if optimize_clicked:
         _run_bulk_optimization(cfg, resource_type, pending_items[:max_items])
+
+    # --- Smart Optimization (selected products only) ---
+    if smart_clicked and selected_items:
+        _run_smart_optimization(cfg, resource_type, selected_items)
 
     # --- Display batch results ---
     batch_results: list[dict] = st.session_state.get("_batch_results", [])
@@ -2000,7 +2048,10 @@ def _render_bulk_results(cfg: AppConfig) -> None:
                     "🟡 **Nur Vorschlag** — Änderungen wurden noch **nicht** "
                     "in Shopify geschrieben."
                 )
-                if result.get("changes"):
+                # Detailed before/after comparison
+                if result.get("current_seo") and result.get("suggested_seo"):
+                    _render_smart_comparison(result["current_seo"], result["suggested_seo"])
+                elif result.get("changes"):
                     for key, val in result["changes"].items():
                         st.markdown(f"**{key}:** {val}")
 
@@ -2326,6 +2377,438 @@ def _run_bulk_optimization(
     success = sum(1 for r in results if r["status"] in ("optimiert", "veröffentlicht"))
     st.success(f"Bulk-Optimierung abgeschlossen: {success}/{total} erfolgreich!")
     st.rerun()
+
+
+# ---------------------------------------------------------------------------
+# Smart Automation — Review Queue
+# ---------------------------------------------------------------------------
+
+
+def _run_smart_optimization(
+    cfg: AppConfig,
+    resource_type: ResourceType,
+    items: list[dict],
+) -> None:
+    """Run KI optimization for selected products and store in smart queue."""
+    import time as _time
+    from keyword_research import research_keywords
+
+    st.markdown("---")
+    st.markdown("### Optimierung läuft...")
+
+    total = len(items)
+    progress = st.progress(0, text=f"Starte Optimierung für {total} ausgewählte Produkte...")
+    status_container = st.empty()
+    results: list[dict] = []
+
+    client = ShopifyClient(cfg)
+    analyzer = SEOAnalyzer(cfg.get_storefront_url())
+    engine = SEOEngine(
+        api_key=cfg.anthropic_api_key,
+        provider=st.session_state.get("ai_provider", "anthropic"),
+        model_id=st.session_state.get("ai_model_id", ""),
+    )
+    sanitizer = HTMLSanitizer()
+
+    st.caption(f"Provider: {engine.provider} | Modell: {engine.model}")
+
+    for idx, item in enumerate(items):
+        step = idx + 1
+        pct = step / total
+        product_name = item["title"][:50]
+        progress.progress(pct, text=f"[{step}/{total}] {product_name}...")
+
+        from datetime import datetime as _dt, timezone as _tz
+        now_str = _dt.now(_tz.utc).strftime("%Y-%m-%d %H:%M")
+
+        result: dict = {
+            "title": item["title"],
+            "handle": item["handle"],
+            "resource_id": item["id"],
+            "resource_type": resource_type.value,
+            "status": "fehler",
+            "error": None,
+            "changes": {},
+            "backup_id": None,
+            "timestamp": now_str,
+            "suggested_seo": None,
+            "current_seo": None,
+            "collection_type": None,
+            "updated_at": None,
+            "review_status": "pending",
+        }
+
+        try:
+            # 1. Load full resource
+            status_container.info(f"[{step}/{total}] Lade {product_name}...")
+            if resource_type == ResourceType.PRODUCT:
+                full = client.get_product(item["id"])
+            elif resource_type == ResourceType.COLLECTION:
+                full = client.get_collection(item["id"], item.get("collection_type", "custom"))
+            else:
+                full = client.get_page(item["id"])
+
+            current_seo = full.to_seo_data()
+
+            # 2. SEO analysis
+            status_container.info(f"[{step}/{total}] Analysiere {product_name}...")
+            try:
+                analysis = analyzer.analyze_page(item["handle"], resource_type.value)
+            except Exception:
+                analysis = None
+
+            # 3. Keyword research
+            status_container.info(f"[{step}/{total}] Keywords für {product_name}...")
+            brand = ""
+            category = ""
+            tags = ""
+            if resource_type == ResourceType.PRODUCT and isinstance(full, ShopifyProduct):
+                brand = full.vendor or ""
+                category = full.product_type or ""
+                tags = full.tags or ""
+
+            try:
+                kw_research = research_keywords(
+                    product_name=item.get("title", full.title),
+                    brand=brand, category=category, tags=tags,
+                )
+                if analysis:
+                    analysis.suggested_keywords = kw_research
+            except Exception:
+                pass
+
+            # 4. KI optimization
+            status_container.info(f"[{step}/{total}] KI optimiert {product_name}... (30-90 Sek.)")
+            extra_context: dict = {}
+            if resource_type == ResourceType.PRODUCT and isinstance(full, ShopifyProduct):
+                extra_context = {
+                    "vendor": full.vendor,
+                    "product_type": full.product_type,
+                    "tags": full.tags,
+                }
+            elif resource_type == ResourceType.COLLECTION and isinstance(full, ShopifyCollection):
+                extra_context = {"collection_type": full.collection_type}
+
+            suggested = engine.generate_seo_suggestions(
+                resource_type=resource_type,
+                current_data=current_seo,
+                title=full.title,
+                analysis=analysis,
+                extra_context=extra_context,
+            )
+
+            # 5. Sanitize HTML
+            sanitized_html, _san_warnings = sanitizer.full_check(
+                suggested.body_html, current_seo.body_html
+            )
+            suggested.body_html = sanitized_html
+
+            # Record changes
+            changes: dict = {}
+            if suggested.seo_title != current_seo.seo_title:
+                changes["SEO-Titel"] = f"{current_seo.seo_title[:30]}... → {suggested.seo_title[:30]}..."
+            if suggested.meta_description != current_seo.meta_description:
+                changes["Meta"] = f"{len(suggested.meta_description)} Zeichen (neu)"
+            if suggested.h1 != current_seo.h1:
+                changes["H1"] = f"{current_seo.h1[:30]}... → {suggested.h1[:30]}..."
+            if suggested.body_html != current_seo.body_html:
+                changes["Body"] = f"{len(suggested.body_html)} Zeichen (neu)"
+
+            result["changes"] = changes
+            result["status"] = "optimiert"
+            result["suggested_seo"] = suggested.model_dump()
+            result["current_seo"] = current_seo.model_dump()
+            result["updated_at"] = full.updated_at if hasattr(full, "updated_at") else ""
+            if resource_type == ResourceType.COLLECTION and isinstance(full, ShopifyCollection):
+                result["collection_type"] = full.collection_type
+
+        except Exception as exc:
+            result["error"] = str(exc)
+            result["status"] = "fehler"
+            logging.error("Smart-Optimierung fehlgeschlagen für '%s': %s", item["title"], exc)
+
+        results.append(result)
+
+        if idx < total - 1:
+            _time.sleep(1)
+
+    progress.empty()
+    status_container.empty()
+
+    # Store in smart queue and switch to review mode
+    st.session_state["_smart_queue"] = results
+    st.session_state["_smart_queue_index"] = 0
+    st.session_state["_smart_queue_phase"] = "review"
+
+    success = sum(1 for r in results if r["status"] == "optimiert")
+    st.success(f"Optimierung abgeschlossen: {success}/{total} erfolgreich! Starte Freigabe-Queue...")
+    st.rerun()
+
+
+def _render_smart_comparison(current_seo: dict, suggested_seo: dict) -> None:
+    """Render a detailed before/after comparison for the smart review queue."""
+    from bs4 import BeautifulSoup as BS4
+
+    current = SEOData(**current_seo)
+    suggested = SEOData(**suggested_seo)
+
+    # --- SEO-Titel ---
+    title_changed = current.seo_title != suggested.seo_title
+    st.markdown(f"#### SEO-Titel {'<span style=\"color:#34c759;font-size:0.8rem;\">● Geändert</span>' if title_changed else ''}", unsafe_allow_html=True)
+    col_old, col_new = st.columns(2)
+    with col_old:
+        st.markdown("**Aktuell:**")
+        st.code(current.seo_title or "(leer)")
+        st.caption(f"{len(current.seo_title)}/{_TITLE_MAX} Zeichen")
+    with col_new:
+        st.markdown("**Vorschlag:**")
+        st.code(suggested.seo_title or "(leer)")
+        title_len = len(suggested.seo_title)
+        color = "#34c759" if title_len <= _TITLE_MAX else "#ff3b30"
+        st.markdown(f'<span style="color:{color};font-size:0.85rem;">{title_len}/{_TITLE_MAX} Zeichen</span>', unsafe_allow_html=True)
+
+    # --- Meta-Beschreibung ---
+    meta_changed = current.meta_description != suggested.meta_description
+    st.markdown(f"#### Meta-Beschreibung {'<span style=\"color:#34c759;font-size:0.8rem;\">● Geändert</span>' if meta_changed else ''}", unsafe_allow_html=True)
+    col_old, col_new = st.columns(2)
+    with col_old:
+        st.markdown("**Aktuell:**")
+        st.code(current.meta_description or "(leer)")
+        st.caption(f"{len(current.meta_description)}/{_DESC_MAX} Zeichen")
+    with col_new:
+        st.markdown("**Vorschlag:**")
+        st.code(suggested.meta_description or "(leer)")
+        meta_len = len(suggested.meta_description)
+        color = "#34c759" if meta_len <= _DESC_MAX else "#ff3b30"
+        st.markdown(f'<span style="color:{color};font-size:0.85rem;">{meta_len}/{_DESC_MAX} Zeichen</span>', unsafe_allow_html=True)
+
+    # --- H1 ---
+    h1_changed = current.h1 != suggested.h1
+    st.markdown(f"#### H1-Überschrift {'<span style=\"color:#34c759;font-size:0.8rem;\">● Geändert</span>' if h1_changed else ''}", unsafe_allow_html=True)
+    col_old, col_new = st.columns(2)
+    with col_old:
+        st.markdown("**Aktuell:**")
+        st.code(current.h1 or "(leer)")
+    with col_new:
+        st.markdown("**Vorschlag:**")
+        st.code(suggested.h1 or "(leer)")
+
+    # --- Body HTML ---
+    body_changed = current.body_html != suggested.body_html
+    st.markdown(f"#### Body HTML {'<span style=\"color:#34c759;font-size:0.8rem;\">● Geändert</span>' if body_changed else ''}", unsafe_allow_html=True)
+
+    old_text = BS4(current.body_html or "", "html.parser").get_text(separator=" ", strip=True)
+    new_text = BS4(suggested.body_html or "", "html.parser").get_text(separator=" ", strip=True)
+    old_words = len(old_text.split()) if old_text else 0
+    new_words = len(new_text.split()) if new_text else 0
+
+    col_old, col_new = st.columns(2)
+    with col_old:
+        st.markdown(f"**Aktuell:** {old_words} Wörter")
+        _render_content_preview(current.body_html)
+    with col_new:
+        word_diff = new_words - old_words
+        diff_str = f" (+{word_diff})" if word_diff > 0 else f" ({word_diff})" if word_diff < 0 else ""
+        st.markdown(f"**Vorschlag:** {new_words} Wörter{diff_str}")
+        _render_content_preview(suggested.body_html)
+
+    # --- Bilder Alt-Texte ---
+    all_images = suggested.images or current.images or []
+    if all_images:
+        current_alt_map = {img.image_id: img.current_alt for img in (current.images or [])}
+        img_changes = sum(
+            1 for img in all_images
+            if img.suggested_alt and img.suggested_alt != current_alt_map.get(img.image_id, img.current_alt)
+        )
+        st.markdown(f"#### Bilder Alt-Texte ({img_changes}/{len(all_images)} geändert)")
+
+        for img in all_images:
+            old_alt = current_alt_map.get(img.image_id, img.current_alt) or ""
+            new_alt = img.suggested_alt or old_alt
+            if old_alt != new_alt:
+                img_col, old_col, new_col = st.columns([1, 3, 3])
+                with img_col:
+                    if img.image_src:
+                        st.image(img.image_src, width=60)
+                    else:
+                        st.caption(f"Bild #{img.image_id}")
+                with old_col:
+                    st.code(old_alt or "(leer)")
+                with new_col:
+                    st.code(new_alt)
+
+
+def _render_smart_review(cfg: AppConfig) -> None:
+    """Render the smart review queue — one product at a time with approve/skip/reject."""
+    queue: list[dict] = st.session_state.get("_smart_queue", [])
+    if not queue:
+        return
+
+    phase = st.session_state.get("_smart_queue_phase", "select")
+
+    # --- Summary phase ---
+    if phase == "summary":
+        _render_smart_summary(queue)
+        return
+
+    # --- Review phase ---
+    idx = st.session_state.get("_smart_queue_index", 0)
+    total = len(queue)
+
+    # Find next pending item
+    while idx < total and queue[idx]["review_status"] != "pending":
+        idx += 1
+
+    if idx >= total:
+        st.session_state["_smart_queue_phase"] = "summary"
+        st.rerun()
+        return
+
+    st.session_state["_smart_queue_index"] = idx
+    result = queue[idx]
+
+    # Count reviewed
+    reviewed = sum(1 for r in queue if r["review_status"] != "pending")
+    approved_so_far = sum(1 for r in queue if r["review_status"] == "approved")
+    rejected_so_far = sum(1 for r in queue if r["review_status"] == "rejected")
+    skipped_so_far = sum(1 for r in queue if r["review_status"] == "skipped")
+
+    # --- Header ---
+    st.markdown(
+        f'<div style="background:rgba(0,122,255,0.08);border:1px solid rgba(0,122,255,0.2);'
+        f'border-radius:12px;padding:16px;margin-bottom:1rem;">'
+        f'<span style="font-size:1.3rem;font-weight:700;">Freigabe-Queue</span>'
+        f'<span style="float:right;font-size:1.1rem;opacity:0.8;">'
+        f'Produkt {reviewed + 1} von {total}</span>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+    st.progress((reviewed + 1) / total)
+
+    # Status badges
+    stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
+    stat_col1.metric("Ausstehend", total - reviewed)
+    stat_col2.metric("✅ Freigegeben", approved_so_far)
+    stat_col3.metric("⏭️ Übersprungen", skipped_so_far)
+    stat_col4.metric("❌ Abgelehnt", rejected_so_far)
+
+    st.markdown("---")
+
+    # --- Current product ---
+    st.markdown(f"### {result['title']}")
+    if result.get("timestamp"):
+        st.caption(f"Optimiert am: {result['timestamp']}")
+
+    # Handle errors
+    if result["status"] == "fehler":
+        st.error(f"Fehler bei diesem Produkt: {result.get('error', 'Unbekannt')}")
+        if st.button("⏭️ Weiter (Fehler überspringen)", key="smart_skip_error", use_container_width=True):
+            queue[idx]["review_status"] = "skipped"
+            st.session_state["_smart_queue_index"] = idx + 1
+            st.rerun()
+        return
+
+    # --- Detailed comparison ---
+    if result.get("current_seo") and result.get("suggested_seo"):
+        _render_smart_comparison(result["current_seo"], result["suggested_seo"])
+    elif result.get("changes"):
+        for key, val in result["changes"].items():
+            st.markdown(f"**{key}:** {val}")
+
+    # --- Action buttons ---
+    st.markdown("---")
+    btn_col1, btn_col2, btn_col3, btn_col4 = st.columns(4)
+
+    with btn_col1:
+        if st.button(
+            "✅ Freigeben",
+            type="primary",
+            use_container_width=True,
+            key=f"smart_approve_{idx}",
+        ):
+            _publish_bulk_items(cfg, queue, publish_index=idx)
+            queue[idx]["review_status"] = "approved"
+            st.session_state["_smart_queue_index"] = idx + 1
+            st.rerun()
+
+    with btn_col2:
+        if st.button(
+            "⏭️ Überspringen",
+            use_container_width=True,
+            key=f"smart_skip_{idx}",
+        ):
+            queue[idx]["review_status"] = "skipped"
+            st.session_state["_smart_queue_index"] = idx + 1
+            st.rerun()
+
+    with btn_col3:
+        if st.button(
+            "❌ Ablehnen",
+            use_container_width=True,
+            key=f"smart_reject_{idx}",
+        ):
+            queue[idx]["review_status"] = "rejected"
+            st.session_state["_smart_queue_index"] = idx + 1
+            st.rerun()
+
+    with btn_col4:
+        if st.button(
+            "🚪 Abbrechen",
+            use_container_width=True,
+            key="smart_cancel",
+        ):
+            st.session_state["_smart_queue_phase"] = "summary"
+            st.rerun()
+
+
+def _render_smart_summary(queue: list[dict]) -> None:
+    """Render the final summary after all products have been reviewed."""
+    st.markdown(
+        '<div style="background:rgba(0,122,255,0.08);border:1px solid rgba(0,122,255,0.2);'
+        'border-radius:12px;padding:16px;margin-bottom:1rem;">'
+        '<span style="font-size:1.3rem;font-weight:700;">Freigabe abgeschlossen</span>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+    approved = [r for r in queue if r["review_status"] == "approved"]
+    skipped = [r for r in queue if r["review_status"] == "skipped"]
+    rejected = [r for r in queue if r["review_status"] == "rejected"]
+    errors = [r for r in queue if r["status"] == "fehler"]
+
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("✅ Freigegeben", len(approved))
+    m2.metric("⏭️ Übersprungen", len(skipped))
+    m3.metric("❌ Abgelehnt", len(rejected))
+    m4.metric("⚠️ Fehler", len(errors))
+
+    if approved:
+        st.markdown("#### ✅ Freigegeben (live geschaltet)")
+        for r in approved:
+            backup_info = f" · Backup #{r.get('backup_id', '?')}" if r.get("backup_id") else ""
+            st.markdown(f"- **{r['title']}**{backup_info}")
+
+    if skipped:
+        st.markdown("#### ⏭️ Übersprungen")
+        for r in skipped:
+            st.markdown(f"- {r['title']}")
+
+    if rejected:
+        st.markdown("#### ❌ Abgelehnt")
+        for r in rejected:
+            st.markdown(f"- {r['title']}")
+
+    if errors:
+        st.markdown("#### ⚠️ Fehler")
+        for r in errors:
+            st.markdown(f"- {r['title']}: {r.get('error', 'Unbekannt')}")
+
+    st.markdown("---")
+    if st.button("Fertig — zurück zur Auswahl", type="primary", use_container_width=True, key="smart_done"):
+        # Clean up smart queue state
+        for key in ["_smart_queue", "_smart_queue_index", "_smart_queue_phase"]:
+            st.session_state.pop(key, None)
+        st.rerun()
 
 
 # ---------------------------------------------------------------------------
