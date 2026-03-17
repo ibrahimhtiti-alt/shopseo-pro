@@ -3367,6 +3367,11 @@ def _render_rankings_keywords(tracker: RankingTracker, cfg: AppConfig) -> None:
                         "Keine Keywords gefunden. Moeglicherweise hat Google "
                         "noch keine Daten fuer diesen Zeitraum gesammelt."
                     )
+                    st.caption(
+                        f"Debug-Info — GSC site_url: `{tracker.site_url}` | "
+                        f"Abfrage-Zeitraum: letzte {days} Tage | "
+                        f"Modus: {'Seite: ' + page_url if page_url else 'Seitenweit'}"
+                    )
             except Exception as exc:
                 st.error(f"Fehler beim Abrufen der Keywords: {exc}")
 
