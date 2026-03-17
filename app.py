@@ -3171,17 +3171,25 @@ def _render_rankings_overview(tracker: RankingTracker, cfg: AppConfig) -> None:
 
     if st.button("Daten laden", type="primary", key="btn_rank_overview"):
         with st.spinner("Lade seitenweite Ranking-Daten..."):
-            site_kws = tracker.get_site_keywords(days=days, limit=200)
-            dist = tracker.get_position_distribution(days=days)
-            movers = tracker.get_movers(days_current=days, days_previous=days)
-            alerts = tracker.generate_alerts(threshold=3.0)
-            st.session_state["_rank_ov"] = {
-                "keywords": site_kws,
-                "distribution": dist,
-                "movers": movers,
-                "alerts": alerts,
-                "days": days,
-            }
+            try:
+                site_kws = tracker.get_site_keywords(days=days, limit=200)
+                dist = tracker.get_position_distribution(days=days)
+                movers = tracker.get_movers(days_current=days, days_previous=days)
+                alerts = tracker.generate_alerts(threshold=3.0)
+                st.session_state["_rank_ov"] = {
+                    "keywords": site_kws,
+                    "distribution": dist,
+                    "movers": movers,
+                    "alerts": alerts,
+                    "days": days,
+                }
+                if not site_kws:
+                    st.warning(
+                        "Keine Keywords gefunden. Moeglicherweise hat Google "
+                        "noch keine Daten fuer diesen Zeitraum gesammelt."
+                    )
+            except Exception as exc:
+                st.error(f"Fehler beim Laden der Ranking-Daten: {exc}")
 
     ov = st.session_state.get("_rank_ov")
     if not ov:
@@ -3347,12 +3355,20 @@ def _render_rankings_keywords(tracker: RankingTracker, cfg: AppConfig) -> None:
 
     if st.button("Keywords abrufen", type="primary", use_container_width=True, key="btn_rank_kw"):
         with st.spinner("Lade Keyword-Daten..."):
-            if page_url:
-                kws = tracker.get_page_rankings(page_url, days=days)
-            else:
-                kws = tracker.get_site_keywords(days=days, limit=100)
-            st.session_state["_rank_kw_data"] = kws
-            st.session_state["_rank_kw_url"] = page_url or cfg.get_storefront_url()
+            try:
+                if page_url:
+                    kws = tracker.get_page_rankings(page_url, days=days)
+                else:
+                    kws = tracker.get_site_keywords(days=days, limit=100)
+                st.session_state["_rank_kw_data"] = kws
+                st.session_state["_rank_kw_url"] = page_url or cfg.get_storefront_url()
+                if not kws:
+                    st.warning(
+                        "Keine Keywords gefunden. Moeglicherweise hat Google "
+                        "noch keine Daten fuer diesen Zeitraum gesammelt."
+                    )
+            except Exception as exc:
+                st.error(f"Fehler beim Abrufen der Keywords: {exc}")
 
     kws: list[RankingData] = st.session_state.get("_rank_kw_data", [])
     kw_url = st.session_state.get("_rank_kw_url", "")
@@ -3570,10 +3586,18 @@ def _render_rankings_opportunities(tracker: RankingTracker, cfg: AppConfig) -> N
 
     if st.button("Chancen analysieren", type="primary", key="btn_rank_opp"):
         with st.spinner("Analysiere Ranking-Chancen..."):
-            opps = tracker.get_opportunities(days=days)
-            cannibal = tracker.get_cannibalization(days=days)
-            st.session_state["_rank_opps"] = opps
-            st.session_state["_rank_cannibal"] = cannibal
+            try:
+                opps = tracker.get_opportunities(days=days)
+                cannibal = tracker.get_cannibalization(days=days)
+                st.session_state["_rank_opps"] = opps
+                st.session_state["_rank_cannibal"] = cannibal
+                if not opps and not cannibal:
+                    st.warning(
+                        "Keine Chancen oder Kannibalisierungen gefunden. "
+                        "Moeglicherweise sind noch keine Daten in der Search Console vorhanden."
+                    )
+            except Exception as exc:
+                st.error(f"Fehler bei der Chancen-Analyse: {exc}")
 
     # --- Quick Wins ---
     opps = st.session_state.get("_rank_opps", [])

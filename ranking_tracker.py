@@ -112,9 +112,14 @@ class RankingTracker:
     def get_page_rankings(
         self, page_url: str, days: int = 28
     ) -> list[RankingData]:
-        """Ranking-Daten fuer eine bestimmte Seite aus der Search Console abfragen."""
+        """Ranking-Daten fuer eine bestimmte Seite aus der Search Console abfragen.
+
+        Raises *RuntimeError* on GSC failure.
+        """
         if not self._connected or not self.service:
-            return []
+            raise RuntimeError(
+                "GSC nicht verbunden. Bitte Verbindung in der Seitenleiste pruefen."
+            )
 
         end_date = datetime.now(timezone.utc).date()
         start_date = end_date - timedelta(days=days)
@@ -164,8 +169,12 @@ class RankingTracker:
             results.sort(key=lambda r: r.impressions, reverse=True)
             return results
 
-        except Exception:
-            return []
+        except RuntimeError:
+            raise
+        except Exception as exc:
+            raise RuntimeError(
+                f"GSC-API-Fehler beim Abrufen der Seiten-Keywords: {exc}"
+            ) from exc
 
     def get_top_keywords(
         self, page_url: str, limit: int = 10
@@ -238,9 +247,12 @@ class RankingTracker:
         """Get ALL keywords for the entire site (not filtered by page).
 
         Returns up to *limit* keywords sorted by impressions descending.
+        Raises *RuntimeError* with a user-friendly message on failure.
         """
         if not self._connected or not self.service:
-            return []
+            raise RuntimeError(
+                "GSC nicht verbunden. Bitte Verbindung in der Seitenleiste pruefen."
+            )
 
         end_date = datetime.now(timezone.utc).date()
         start_date = end_date - timedelta(days=days)
@@ -276,8 +288,12 @@ class RankingTracker:
                 )
             results.sort(key=lambda r: r.impressions, reverse=True)
             return results
-        except Exception:
-            return []
+        except RuntimeError:
+            raise
+        except Exception as exc:
+            raise RuntimeError(
+                f"GSC-API-Fehler beim Abrufen der Keywords: {exc}"
+            ) from exc
 
     def get_position_distribution(self, days: int = 28) -> dict[str, int]:
         """Count keywords in each position bucket.
@@ -309,7 +325,9 @@ class RankingTracker:
         Sorted by absolute change descending.
         """
         if not self._connected or not self.service:
-            return {"winners": [], "losers": []}
+            raise RuntimeError(
+                "GSC nicht verbunden. Bitte Verbindung in der Seitenleiste pruefen."
+            )
 
         end_current = datetime.now(timezone.utc).date()
         start_current = end_current - timedelta(days=days_current)
@@ -317,34 +335,36 @@ class RankingTracker:
         start_previous = end_previous - timedelta(days=days_previous)
 
         def _fetch_period(start, end):
-            try:
-                resp = (
-                    self.service.searchanalytics()
-                    .query(
-                        siteUrl=self.site_url,
-                        body={
-                            "startDate": start.isoformat(),
-                            "endDate": end.isoformat(),
-                            "dimensions": ["query"],
-                            "rowLimit": 200,
-                            "type": "web",
-                        },
-                    )
-                    .execute()
+            resp = (
+                self.service.searchanalytics()
+                .query(
+                    siteUrl=self.site_url,
+                    body={
+                        "startDate": start.isoformat(),
+                        "endDate": end.isoformat(),
+                        "dimensions": ["query"],
+                        "rowLimit": 200,
+                        "type": "web",
+                    },
                 )
-                return {
-                    row["keys"][0]: {
-                        "position": row.get("position", 0.0),
-                        "clicks": row.get("clicks", 0),
-                        "impressions": row.get("impressions", 0),
-                    }
-                    for row in resp.get("rows", [])
+                .execute()
+            )
+            return {
+                row["keys"][0]: {
+                    "position": row.get("position", 0.0),
+                    "clicks": row.get("clicks", 0),
+                    "impressions": row.get("impressions", 0),
                 }
-            except Exception:
-                return {}
+                for row in resp.get("rows", [])
+            }
 
-        current = _fetch_period(start_current, end_current)
-        previous = _fetch_period(start_previous, end_previous)
+        try:
+            current = _fetch_period(start_current, end_current)
+            previous = _fetch_period(start_previous, end_previous)
+        except Exception as exc:
+            raise RuntimeError(
+                f"GSC-API-Fehler bei Winners/Losers-Analyse: {exc}"
+            ) from exc
 
         winners, losers = [], []
         for kw, cur_data in current.items():
@@ -375,6 +395,7 @@ class RankingTracker:
 
         These are 'quick wins' where improving position yields traffic.
         Returns list of: {keyword, position, impressions, clicks, ctr, estimated_clicks}
+        Raises *RuntimeError* on GSC failure (propagated from *get_site_keywords*).
         """
         keywords = self.get_site_keywords(days=days, limit=500)
         opportunities = []
@@ -399,9 +420,12 @@ class RankingTracker:
         """Find keywords where multiple pages compete with each other.
 
         Returns list of: {keyword, pages: [{url, position, clicks, impressions}]}
+        Raises *RuntimeError* on GSC failure.
         """
         if not self._connected or not self.service:
-            return []
+            raise RuntimeError(
+                "GSC nicht verbunden. Bitte Verbindung in der Seitenleiste pruefen."
+            )
 
         end_date = datetime.now(timezone.utc).date()
         start_date = end_date - timedelta(days=days)
@@ -450,8 +474,10 @@ class RankingTracker:
 
             result.sort(key=lambda x: x["total_impressions"], reverse=True)
             return result[:20]
-        except Exception:
-            return []
+        except Exception as exc:
+            raise RuntimeError(
+                f"GSC-API-Fehler bei Kannibalisierungs-Analyse: {exc}"
+            ) from exc
 
     def generate_alerts(self, threshold: float = 3.0) -> list[dict]:
         """Compare latest snapshot with previous to find significant changes.
