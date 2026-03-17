@@ -33,6 +33,9 @@ from ai_engine import SEOEngine
 from ranking_tracker import RankingTracker
 from backup_store import BackupStore
 from html_sanitizer import HTMLSanitizer
+from competitor_store import CompetitorStore
+
+import plotly.graph_objects as go
 
 # ---------------------------------------------------------------------------
 # Page configuration
@@ -137,6 +140,189 @@ def _get_ranking_tracker() -> RankingTracker | None:
             credentials_path=cfg.google_credentials_path,
         )
     return st.session_state["ranking_tracker"]
+
+
+# ---------------------------------------------------------------------------
+# Plotly chart helpers
+# ---------------------------------------------------------------------------
+
+_PLOTLY_COLORS = {
+    "blue": "#007AFF",
+    "green": "#34C759",
+    "orange": "#FF9F0A",
+    "red": "#FF3B30",
+    "purple": "#5856D6",
+    "gray": "#8E8E93",
+}
+
+_PLOTLY_LAYOUT = dict(
+    font=dict(family="Inter, -apple-system, sans-serif", size=13),
+    paper_bgcolor="rgba(0,0,0,0)",
+    plot_bgcolor="rgba(0,0,0,0)",
+    margin=dict(l=40, r=20, t=40, b=40),
+    legend=dict(
+        bgcolor="rgba(0,0,0,0)",
+        font=dict(size=12),
+    ),
+)
+
+
+def _plotly_chart(fig: go.Figure, **kwargs) -> None:
+    """Render a Plotly figure with consistent styling."""
+    fig.update_layout(**_PLOTLY_LAYOUT)
+    st.plotly_chart(
+        fig,
+        use_container_width=True,
+        config={"displayModeBar": False},
+        **kwargs,
+    )
+
+
+def _create_score_gauge(score: int) -> go.Figure:
+    """Create a Plotly gauge chart for SEO score (0-100)."""
+    if score >= 80:
+        color = _PLOTLY_COLORS["green"]
+    elif score >= 50:
+        color = _PLOTLY_COLORS["orange"]
+    else:
+        color = _PLOTLY_COLORS["red"]
+
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=score,
+        number=dict(font=dict(size=48, color=color)),
+        gauge=dict(
+            axis=dict(range=[0, 100], tickwidth=0, tickcolor="rgba(0,0,0,0)"),
+            bar=dict(color=color, thickness=0.7),
+            bgcolor="rgba(142,142,147,0.1)",
+            borderwidth=0,
+            steps=[
+                dict(range=[0, 40], color="rgba(255,59,48,0.08)"),
+                dict(range=[40, 70], color="rgba(255,159,10,0.08)"),
+                dict(range=[70, 100], color="rgba(52,199,89,0.08)"),
+            ],
+        ),
+    ))
+    fig.update_layout(height=200, margin=dict(l=20, r=20, t=20, b=20))
+    return fig
+
+
+def _create_position_distribution(dist: dict[str, int]) -> go.Figure:
+    """Create a horizontal bar chart for position distribution."""
+    categories = ["Top 3", "Seite 1 (4-10)", "Seite 2 (11-20)", "Seite 3+"]
+    values = [
+        dist.get("top3", 0),
+        dist.get("page1", 0),
+        dist.get("page2", 0),
+        dist.get("page3_plus", 0),
+    ]
+    colors = [
+        _PLOTLY_COLORS["green"],
+        _PLOTLY_COLORS["blue"],
+        _PLOTLY_COLORS["orange"],
+        _PLOTLY_COLORS["red"],
+    ]
+
+    fig = go.Figure(go.Bar(
+        x=values,
+        y=categories,
+        orientation="h",
+        marker=dict(color=colors, cornerradius=6),
+        text=values,
+        textposition="auto",
+        textfont=dict(size=14, color="white"),
+    ))
+    fig.update_layout(
+        height=220,
+        yaxis=dict(autorange="reversed"),
+        xaxis=dict(showgrid=False, showticklabels=False),
+        showlegend=False,
+    )
+    return fig
+
+
+def _create_ranking_trend(df: pd.DataFrame, x_col: str, y_col: str, title: str = "") -> go.Figure:
+    """Create a line chart for ranking trends (inverted Y-axis: position 1 at top)."""
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=df[x_col],
+        y=df[y_col],
+        mode="lines+markers",
+        line=dict(color=_PLOTLY_COLORS["blue"], width=2.5),
+        marker=dict(size=6, color=_PLOTLY_COLORS["blue"]),
+        fill="tozeroy",
+        fillcolor="rgba(0,122,255,0.08)",
+        name=title or y_col,
+    ))
+    fig.update_layout(
+        height=300,
+        yaxis=dict(
+            autorange="reversed",
+            title="Position",
+            gridcolor="rgba(142,142,147,0.1)",
+        ),
+        xaxis=dict(title="", gridcolor="rgba(142,142,147,0.1)"),
+        title=dict(text=title, font=dict(size=15)) if title else None,
+    )
+    return fig
+
+
+def _create_daily_activity(data: list[dict]) -> go.Figure:
+    """Create a bar chart for daily optimization activity."""
+    if not data:
+        fig = go.Figure()
+        fig.update_layout(height=200)
+        return fig
+
+    dates = [d["date"] for d in data]
+    counts = [d["count"] for d in data]
+
+    fig = go.Figure(go.Bar(
+        x=dates,
+        y=counts,
+        marker=dict(
+            color=_PLOTLY_COLORS["blue"],
+            cornerradius=4,
+        ),
+        text=counts,
+        textposition="outside",
+        textfont=dict(size=11),
+    ))
+    fig.update_layout(
+        height=250,
+        xaxis=dict(title="", gridcolor="rgba(0,0,0,0)"),
+        yaxis=dict(title="Optimierungen", gridcolor="rgba(142,142,147,0.1)"),
+        showlegend=False,
+    )
+    return fig
+
+
+def _create_competitor_comparison(data: list[dict], our_position: float, keyword: str) -> go.Figure:
+    """Create a bar chart comparing our position vs competitors for a keyword."""
+    names = ["Wir"] + [d["competitor_name"] for d in data]
+    positions = [our_position] + [d["competitor_position"] for d in data]
+    colors = [_PLOTLY_COLORS["blue"]] + [_PLOTLY_COLORS["orange"]] * len(data)
+
+    fig = go.Figure(go.Bar(
+        x=names,
+        y=positions,
+        marker=dict(color=colors, cornerradius=6),
+        text=[f"Pos. {p:.0f}" for p in positions],
+        textposition="outside",
+        textfont=dict(size=12),
+    ))
+    fig.update_layout(
+        height=300,
+        yaxis=dict(
+            autorange="reversed",
+            title="Position (niedriger = besser)",
+            gridcolor="rgba(142,142,147,0.1)",
+        ),
+        xaxis=dict(title=""),
+        title=dict(text=f'Keyword: "{keyword}"', font=dict(size=14)),
+        showlegend=False,
+    )
+    return fig
 
 
 # ---------------------------------------------------------------------------
@@ -417,15 +603,16 @@ def _load_items(resource_type: ResourceType) -> list[dict]:
 
 
 def _render_score_box(score: int) -> None:
-    """Render a large, coloured score box."""
-    css_class = _score_css_class(score)
+    """Render an interactive Plotly gauge for the SEO score."""
+    fig = _create_score_gauge(score)
+    _plotly_chart(fig)
     label = "Gut" if score >= 80 else ("Mittel" if score >= 50 else "Kritisch")
+    color = "#34C759" if score >= 80 else ("#FF9F0A" if score >= 50 else "#FF3B30")
     st.markdown(
-        f'<div class="score-box {css_class}">'
-        f'{score}<span style="font-size:1rem;font-weight:400;opacity:0.7;">/100</span>'
-        f'<br><span style="font-size:0.85rem;font-weight:500;letter-spacing:0.02em;'
-        f'text-transform:uppercase;opacity:0.85;">{label}</span>'
-        f'</div>',
+        f'<div style="text-align:center;margin-top:-10px;">'
+        f'<span style="font-size:0.85rem;font-weight:600;color:{color};'
+        f'text-transform:uppercase;letter-spacing:0.04em;">{label}</span>'
+        f"</div>",
         unsafe_allow_html=True,
     )
 
@@ -850,7 +1037,7 @@ def _render_compliance_warnings(warnings: list[ComplianceWarning]) -> None:
 
 
 def _render_tab_dashboard() -> None:
-    """Render the dashboard / overview tab with key metrics."""
+    """Render the dashboard / overview tab with key metrics and charts."""
     cfg: AppConfig | None = st.session_state.get("config")
     if not cfg:
         st.info("Bitte zuerst die Konfiguration in der Seitenleiste ausfuellen.")
@@ -862,6 +1049,7 @@ def _render_tab_dashboard() -> None:
     try:
         backup_store = BackupStore()
         stats = backup_store.get_stats()
+        daily_counts = backup_store.get_daily_optimization_counts(days=30)
     except Exception:
         stats = {
             "total_backups": 0,
@@ -869,59 +1057,118 @@ def _render_tab_dashboard() -> None:
             "total_optimized_30d": 0,
             "recent_backups": [],
         }
+        daily_counts = []
 
-    # --- Product / Collection / Page counts ---
-    count_col1, count_col2, count_col3 = st.columns(3)
-    resource_counts: dict[str, int] = {}
-    for rt in ResourceType:
-        cache_key = f"_items_{rt.value}"
-        items = st.session_state.get(cache_key)
-        if items is not None:
-            resource_counts[rt.value] = len(items)
+    # --- Top row: Resource counts + SEO score gauge ---
+    top_left, top_right = st.columns([3, 1])
 
-    with count_col1:
-        cnt = resource_counts.get("Produkte", "—")
-        st.metric("Produkte", cnt)
-    with count_col2:
-        cnt = resource_counts.get("Kategorien", "—")
-        st.metric("Kategorien", cnt)
-    with count_col3:
-        cnt = resource_counts.get("Seiten", "—")
-        st.metric("Seiten", cnt)
+    with top_left:
+        # Resource counts
+        count_col1, count_col2, count_col3, count_col4 = st.columns(4)
+        resource_counts: dict[str, int] = {}
+        for rt in ResourceType:
+            cache_key = f"_items_{rt.value}"
+            items = st.session_state.get(cache_key)
+            if items is not None:
+                resource_counts[rt.value] = len(items)
 
-    if not resource_counts:
-        st.caption(
-            "Produktzahlen werden angezeigt, nachdem du einen Tab mit Shopify-Daten besucht hast."
-        )
+        with count_col1:
+            st.metric("Produkte", resource_counts.get("Produkt", "---"))
+        with count_col2:
+            st.metric("Kategorien", resource_counts.get("Kategorie", "---"))
+        with count_col3:
+            st.metric("Seiten", resource_counts.get("Statische Seite", "---"))
+        with count_col4:
+            st.metric("Backups", stats["total_backups"])
 
-    st.markdown("---")
+        if not resource_counts:
+            st.caption(
+                "Produktzahlen werden angezeigt, nachdem du einen Tab mit Shopify-Daten besucht hast."
+            )
 
-    # --- Optimization stats ---
-    st.markdown("### Optimierungs-Statistik")
-    opt_col1, opt_col2, opt_col3, opt_col4 = st.columns(4)
-    with opt_col1:
-        st.metric("Optimiert (7 Tage)", stats["total_optimized_7d"])
-    with opt_col2:
-        st.metric("Optimiert (30 Tage)", stats["total_optimized_30d"])
-    with opt_col3:
-        st.metric("Backups gesamt", stats["total_backups"])
-    with opt_col4:
-        # Average score from last batch if available
+    with top_right:
+        # SEO Score gauge
         batch_results = st.session_state.get("_batch_results", [])
         if batch_results:
             scores = [r.get("score", 0) for r in batch_results if r.get("score")]
-            avg = round(sum(scores) / len(scores)) if scores else "—"
+            avg_score = round(sum(scores) / len(scores)) if scores else 0
         else:
-            avg = "—"
-        st.metric("Ø SEO-Score", avg)
+            avg_score = 0
+        if avg_score > 0:
+            fig = _create_score_gauge(avg_score)
+            _plotly_chart(fig)
+            st.caption("Ø SEO-Score (letzte Batch-Analyse)")
+        else:
+            st.markdown(
+                '<div class="glass-card" style="text-align:center;padding:2rem;">'
+                '<div class="stat-number" style="opacity:0.3;">---</div>'
+                '<div class="stat-label">Ø SEO-Score</div>'
+                '<div style="font-size:0.8rem;opacity:0.5;margin-top:0.5rem;">'
+                "Starte eine Batch-Analyse fuer den Score</div>"
+                "</div>",
+                unsafe_allow_html=True,
+            )
 
     st.markdown("---")
 
+    # --- Optimization stats + activity chart ---
+    stats_col, chart_col = st.columns([1, 2])
+
+    with stats_col:
+        st.markdown("#### Optimierungen")
+        st.markdown(
+            f'<div class="glass-card">'
+            f'<div class="stat-number">{stats["total_optimized_7d"]}</div>'
+            f'<div class="stat-label">Letzte 7 Tage</div>'
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            f'<div class="glass-card">'
+            f'<div class="stat-number">{stats["total_optimized_30d"]}</div>'
+            f'<div class="stat-label">Letzte 30 Tage</div>'
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+
+    with chart_col:
+        st.markdown("#### Optimierungen pro Tag (30 Tage)")
+        if daily_counts:
+            fig = _create_daily_activity(daily_counts)
+            _plotly_chart(fig)
+        else:
+            st.caption("Noch keine Optimierungen durchgefuehrt.")
+
+    st.markdown("---")
+
+    # --- Rankings widget (if GSC connected) ---
+    if st.session_state.get("gsc_connected"):
+        st.markdown("#### Top Keywords (Google Search Console)")
+        tracker = _get_ranking_tracker()
+        if tracker and tracker.is_connected():
+            try:
+                top_kws = tracker.get_site_keywords(days=28, limit=5)
+                if top_kws:
+                    rows = []
+                    for kw in top_kws:
+                        rows.append({
+                            "Keyword": kw.keyword,
+                            "Position": round(kw.position, 1),
+                            "Klicks": kw.clicks,
+                            "Impressionen": kw.impressions,
+                        })
+                    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+                else:
+                    st.caption("Keine Ranking-Daten verfuegbar.")
+            except Exception:
+                st.caption("Rankings konnten nicht geladen werden.")
+        st.markdown("---")
+
     # --- Recent activity ---
-    st.markdown("### Letzte Aenderungen")
+    st.markdown("#### Letzte Aenderungen")
     recent = stats["recent_backups"]
     if not recent:
-        st.caption("Noch keine Optimierungen durchgeführt.")
+        st.caption("Noch keine Optimierungen durchgefuehrt.")
     else:
         for entry in recent:
             ts_display = entry.timestamp[:16].replace("T", " ") if entry.timestamp else "?"
@@ -929,36 +1176,39 @@ def _render_tab_dashboard() -> None:
             resource_label = entry.resource_type or "?"
             st.markdown(
                 f"{status_icon} **{ts_display}** — {resource_label} #{entry.resource_id} "
-                f"{'(zurückgesetzt)' if entry.rolled_back else ''}"
+                f"{'(zurueckgesetzt)' if entry.rolled_back else ''}"
             )
 
     st.markdown("---")
 
     # --- Quick actions ---
-    st.markdown("### Schnellzugriff")
+    st.markdown("#### Schnellzugriff")
     qa_col1, qa_col2, qa_col3 = st.columns(3)
     with qa_col1:
         st.markdown(
-            '<div class="info-box info-box-blue" style="text-align:center;">'
-            '<strong>SEO-Optimierung</strong><br>'
-            '<span style="font-size:0.85rem;">Einzelne Produkte analysieren & optimieren</span>'
-            '</div>',
+            '<div class="glass-card" style="text-align:center;">'
+            '<div style="font-size:1.5rem;">🔍</div>'
+            "<strong>SEO-Optimierung</strong><br>"
+            '<span style="font-size:0.85rem;opacity:0.7;">Einzelne Produkte analysieren & optimieren</span>'
+            "</div>",
             unsafe_allow_html=True,
         )
     with qa_col2:
         st.markdown(
-            '<div class="info-box info-box-green" style="text-align:center;">'
-            '<strong>Batch-Analyse</strong><br>'
-            '<span style="font-size:0.85rem;">Mehrere Produkte auf einmal optimieren</span>'
-            '</div>',
+            '<div class="glass-card" style="text-align:center;">'
+            '<div style="font-size:1.5rem;">⚡</div>'
+            "<strong>Batch-Analyse</strong><br>"
+            '<span style="font-size:0.85rem;opacity:0.7;">Mehrere Produkte auf einmal optimieren</span>'
+            "</div>",
             unsafe_allow_html=True,
         )
     with qa_col3:
         st.markdown(
-            '<div class="info-box info-box-orange" style="text-align:center;">'
-            '<strong>Google Rankings</strong><br>'
-            '<span style="font-size:0.85rem;">Search Console Daten & Trends</span>'
-            '</div>',
+            '<div class="glass-card" style="text-align:center;">'
+            '<div style="font-size:1.5rem;">📊</div>'
+            "<strong>Google Rankings</strong><br>"
+            '<span style="font-size:0.85rem;opacity:0.7;">Search Console Daten, Konkurrenz & Trends</span>'
+            "</div>",
             unsafe_allow_html=True,
         )
 
@@ -2857,21 +3107,22 @@ def _render_smart_summary(queue: list[dict]) -> None:
 
 
 def _render_tab_rankings() -> None:
-    """Render the Google Search Console rankings tab."""
+    """Render the Google Search Console rankings tab with sub-tabs."""
     cfg: AppConfig | None = st.session_state.get("config")
     if not cfg:
-        st.info("Bitte zuerst die Konfiguration ausfüllen.")
+        st.info("Bitte zuerst die Konfiguration ausfuellen.")
         return
 
     if not st.session_state.get("gsc_connected"):
-        st.info(
-            "Google Search Console ist nicht verbunden. "
-            "Trage den Pfad zur Google-Credentials-Datei in der Seitenleiste ein "
-            "und klicke auf 'Testen'."
+        st.markdown(
+            '<div class="section-gradient-blue">'
+            "<strong>Google Search Console nicht verbunden</strong><br>"
+            '<span style="font-size:0.9rem;">Trage den Pfad zur Google-Credentials-Datei '
+            "in der Seitenleiste ein und klicke auf 'Testen'.</span>"
+            "</div>",
+            unsafe_allow_html=True,
         )
         return
-
-    st.markdown("### Google Search Console - Ranking-Übersicht")
 
     tracker = _get_ranking_tracker()
     if not tracker:
@@ -2884,146 +3135,513 @@ def _render_tab_rankings() -> None:
             st.error(f"GSC-Verbindung fehlgeschlagen: {msg}")
             return
 
-    # URL input
-    st.markdown("#### Seite analysieren")
+    st.markdown("### Google Rankings & Konkurrenz-Analyse")
 
-    url_mode = st.radio(
-        "URL-Modus",
-        options=["Manuelle URL", "Aus Ressource wählen"],
-        horizontal=True,
-        key="ranking_url_mode",
-    )
+    # --- Sub-Tabs ---
+    sub_overview, sub_keywords, sub_competitors, sub_opportunities = st.tabs([
+        "Uebersicht", "Keywords", "Konkurrenz", "Chancen"
+    ])
 
-    page_url = ""
-    if url_mode == "Manuelle URL":
-        page_url = st.text_input(
-            "Seiten-URL",
-            value=cfg.get_storefront_url() + "/",
-            key="ranking_manual_url",
-        )
-    else:
-        rank_col1, rank_col2 = st.columns([1, 3])
-        with rank_col1:
-            resource_type_label = st.selectbox(
-                "Typ",
-                options=[rt.value for rt in ResourceType],
-                key="ranking_resource_type",
-            )
-        resource_type = ResourceType(resource_type_label)
-        cache_key = f"_items_{resource_type.value}"
-        if cache_key in st.session_state:
-            items_list = st.session_state[cache_key]
-            if items_list:
-                with rank_col2:
-                    item_labels = [f"{item['title']} ({item['handle']})" for item in items_list]
-                    selected_idx = st.selectbox(
-                        "Ressource",
-                        options=range(len(item_labels)),
-                        format_func=lambda i: item_labels[i],
-                        key="ranking_sel_item",
-                    )
-                    page_url = _build_page_url(
-                        cfg, resource_type, items_list[selected_idx]["handle"]
-                    )
-                st.caption(f"URL: `{page_url}`")
-            else:
-                st.info("Lade zuerst Ressourcen im SEO-Tab.")
-        else:
-            st.info("Lade zuerst Ressourcen im SEO-Tab.")
+    # ==================== SUB-TAB: UEBERSICHT ====================
+    with sub_overview:
+        _render_rankings_overview(tracker, cfg)
 
-    # Timeframe
+    # ==================== SUB-TAB: KEYWORDS ====================
+    with sub_keywords:
+        _render_rankings_keywords(tracker, cfg)
+
+    # ==================== SUB-TAB: KONKURRENZ ====================
+    with sub_competitors:
+        _render_rankings_competitors(tracker, cfg)
+
+    # ==================== SUB-TAB: CHANCEN ====================
+    with sub_opportunities:
+        _render_rankings_opportunities(tracker, cfg)
+
+
+def _render_rankings_overview(tracker: RankingTracker, cfg: AppConfig) -> None:
+    """Sub-tab: Overview with position distribution, movers, trend."""
     days = st.selectbox(
         "Zeitraum",
         options=[7, 14, 28, 90],
         index=2,
         format_func=lambda d: f"Letzte {d} Tage",
-        key="ranking_days",
+        key="rank_ov_days",
     )
 
-    if page_url and st.button("Rankings abrufen", type="primary", use_container_width=True, key="btn_fetch_rankings"):
-        with st.spinner("Lade Ranking-Daten..."):
-            rankings = tracker.get_page_rankings(page_url, days=days)
-            st.session_state["_tab_rankings_data"] = rankings
-            st.session_state["_tab_rankings_url"] = page_url
+    if st.button("Daten laden", type="primary", key="btn_rank_overview"):
+        with st.spinner("Lade seitenweite Ranking-Daten..."):
+            site_kws = tracker.get_site_keywords(days=days, limit=200)
+            dist = tracker.get_position_distribution(days=days)
+            movers = tracker.get_movers(days_current=days, days_previous=days)
+            alerts = tracker.generate_alerts(threshold=3.0)
+            st.session_state["_rank_ov"] = {
+                "keywords": site_kws,
+                "distribution": dist,
+                "movers": movers,
+                "alerts": alerts,
+                "days": days,
+            }
 
-    # Display results
-    rankings: list[RankingData] = st.session_state.get("_tab_rankings_data", [])
-    rankings_url: str = st.session_state.get("_tab_rankings_url", "")
+    ov = st.session_state.get("_rank_ov")
+    if not ov:
+        st.info("Klicke 'Daten laden' um die seitenweite Ranking-Uebersicht zu sehen.")
+        return
 
-    if rankings:
-        st.markdown(f"#### Rankings für `{rankings_url}`")
-        st.markdown(f"**{len(rankings)} Keywords** (letzte {days} Tage)")
+    site_kws = ov["keywords"]
+    dist = ov["distribution"]
+    movers = ov["movers"]
+    alerts = ov["alerts"]
 
-        # Summary
-        total_clicks = sum(r.clicks for r in rankings)
-        total_impressions = sum(r.impressions for r in rankings)
-        avg_position = sum(r.position for r in rankings) / len(rankings) if rankings else 0
-        avg_ctr = (total_clicks / total_impressions * 100) if total_impressions > 0 else 0
+    # --- Alerts banner ---
+    if alerts:
+        winners_a = [a for a in alerts if a["alert_type"] == "winner"]
+        losers_a = [a for a in alerts if a["alert_type"] == "loser"]
+        if winners_a or losers_a:
+            parts = []
+            if winners_a:
+                parts.append(f'<span class="badge-winner">{len(winners_a)} Keywords gestiegen</span>')
+            if losers_a:
+                parts.append(f'<span class="badge-loser">{len(losers_a)} Keywords gefallen</span>')
+            st.markdown(
+                '<div class="glass-card" style="text-align:center;">'
+                f'<strong>Position-Alerts seit letztem Snapshot:</strong> {" ".join(parts)}'
+                "</div>",
+                unsafe_allow_html=True,
+            )
 
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Klicks", f"{total_clicks:,}")
-        m2.metric("Impressionen", f"{total_impressions:,}")
-        m3.metric("Durchschnitt Position", f"{avg_position:.1f}")
-        m4.metric("Durchschnitt CTR", f"{avg_ctr:.1f}%")
+    # --- Summary metrics ---
+    total_kws = len(site_kws)
+    total_clicks = sum(k.clicks for k in site_kws)
+    total_impressions = sum(k.impressions for k in site_kws)
+    avg_pos = sum(k.position for k in site_kws) / total_kws if total_kws else 0
 
-        # Keyword table
-        st.markdown("#### Keyword-Details")
-        rows = []
-        for rd in rankings:
-            if rd.position <= 3:
-                pos_icon = "Top 3"
-            elif rd.position <= 10:
-                pos_icon = "Seite 1"
-            elif rd.position <= 20:
-                pos_icon = "Seite 2"
-            else:
-                pos_icon = f"Seite {int(rd.position // 10) + 1}"
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Keywords", f"{total_kws}")
+    m2.metric("Klicks", f"{total_clicks:,}")
+    m3.metric("Impressionen", f"{total_impressions:,}")
+    m4.metric("Ø Position", f"{avg_pos:.1f}")
 
-            rows.append({
-                "Status": pos_icon,
-                "Keyword": rd.keyword,
-                "Position": f"{rd.position:.1f}",
-                "Klicks": rd.clicks,
-                "Impressionen": rd.impressions,
-                "CTR": f"{rd.ctr * 100:.1f}%",
-            })
-        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+    st.markdown("---")
 
-        # Snapshot
-        if st.button("Snapshot speichern", key="btn_save_ranking_snap"):
-            tracker.save_snapshot(rankings)
-            st.success("Ranking-Snapshot gespeichert!")
+    # --- Position distribution chart ---
+    dist_col, trend_col = st.columns([1, 2])
+    with dist_col:
+        st.markdown("#### Positions-Verteilung")
+        fig = _create_position_distribution(dist)
+        _plotly_chart(fig)
+        st.caption(
+            f"Top 3: **{dist.get('top3', 0)}** | Seite 1: **{dist.get('page1', 0)}** | "
+            f"Seite 2: **{dist.get('page2', 0)}** | Seite 3+: **{dist.get('page3_plus', 0)}**"
+        )
 
-        # Historical trend
-        history = tracker.load_history(rankings_url)
+    with trend_col:
+        # Show historical avg position trend from snapshots
+        st.markdown("#### Positions-Trend (Durchschnitt)")
+        history = tracker._load_history_file()
         if history:
-            st.markdown("#### Ranking-Verlauf")
-            st.caption(f"{len(history)} historische Datenpunkte")
             df = pd.DataFrame(history)
             if "snapshot_time" in df.columns and "position" in df.columns:
                 chart_df = (
                     df.groupby("snapshot_time")["position"]
                     .mean()
                     .reset_index()
-                    .rename(columns={"snapshot_time": "Datum", "position": "Durchschnitt Position"})
+                    .rename(columns={"snapshot_time": "Datum", "position": "Position"})
                 )
-                st.line_chart(chart_df, x="Datum", y="Durchschnitt Position")
+                if len(chart_df) >= 2:
+                    fig = _create_ranking_trend(chart_df, "Datum", "Position", "Ø Position ueber Zeit")
+                    _plotly_chart(fig)
+                else:
+                    st.info("Mindestens 2 Snapshots noetig fuer den Trend.")
+            else:
+                st.info("Speichere Snapshots um den Trend zu sehen.")
+        else:
+            st.info("Noch keine Snapshots gespeichert. Nutze den Keywords-Tab um einen Snapshot zu speichern.")
 
-            # Per-keyword trend
-            keywords_in_history = df["keyword"].unique().tolist() if "keyword" in df.columns else []
-            if keywords_in_history:
-                selected_kw = st.selectbox(
-                    "Keyword-Trend anzeigen",
-                    options=keywords_in_history,
-                    key="ranking_trend_kw",
+    st.markdown("---")
+
+    # --- Winners / Losers ---
+    st.markdown("#### Gewinner & Verlierer")
+    st.caption(f"Vergleich: letzte {ov['days']} Tage vs. vorherige {ov['days']} Tage")
+    win_col, lose_col = st.columns(2)
+
+    with win_col:
+        st.markdown(
+            '<div class="section-gradient-green"><strong>Gestiegen</strong></div>',
+            unsafe_allow_html=True,
+        )
+        winners = movers.get("winners", [])
+        if winners:
+            for w in winners[:5]:
+                change_str = f"+{w['change']:.1f}"
+                st.markdown(
+                    f'<span class="badge-winner">{change_str}</span> '
+                    f"**{w['keyword']}** — Pos. {w['old_position']:.0f} → {w['new_position']:.0f} "
+                    f"({w['clicks']} Klicks)",
+                    unsafe_allow_html=True,
                 )
-                trend = tracker.get_trend(rankings_url, selected_kw)
-                if trend:
-                    trend_df = pd.DataFrame(trend)
-                    st.line_chart(trend_df, x="date", y="position")
+        else:
+            st.caption("Keine signifikanten Verbesserungen.")
 
-    elif rankings_url:
-        st.info("Keine Ranking-Daten für diese URL gefunden.")
+    with lose_col:
+        st.markdown(
+            '<div class="info-box info-box-orange"><strong>Gefallen</strong></div>',
+            unsafe_allow_html=True,
+        )
+        losers = movers.get("losers", [])
+        if losers:
+            for lo in losers[:5]:
+                change_str = f"{lo['change']:.1f}"
+                st.markdown(
+                    f'<span class="badge-loser">{change_str}</span> '
+                    f"**{lo['keyword']}** — Pos. {lo['old_position']:.0f} → {lo['new_position']:.0f} "
+                    f"({lo['impressions']} Impressionen)",
+                    unsafe_allow_html=True,
+                )
+        else:
+            st.caption("Keine signifikanten Verschlechterungen.")
+
+    # --- Snapshot button ---
+    st.markdown("---")
+    if st.button("Snapshot speichern", key="btn_snap_overview", help="Speichert aktuelle Rankings fuer spaetere Trend-Analyse"):
+        if site_kws:
+            tracker.save_snapshot(site_kws)
+            st.success(f"Snapshot mit {len(site_kws)} Keywords gespeichert!")
+        else:
+            st.warning("Keine Keywords zum Speichern.")
+
+
+def _render_rankings_keywords(tracker: RankingTracker, cfg: AppConfig) -> None:
+    """Sub-tab: Detailed keyword table with filters and per-keyword trends."""
+    st.markdown("#### Keyword-Details")
+
+    # URL selection
+    url_mode = st.radio(
+        "URL-Modus",
+        options=["Alle Keywords (seitenweit)", "Bestimmte Seite"],
+        horizontal=True,
+        key="rank_kw_mode",
+    )
+
+    days = st.selectbox(
+        "Zeitraum", options=[7, 14, 28, 90], index=2,
+        format_func=lambda d: f"Letzte {d} Tage", key="rank_kw_days",
+    )
+
+    page_url = ""
+    if url_mode == "Bestimmte Seite":
+        rank_col1, rank_col2 = st.columns([1, 3])
+        with rank_col1:
+            rt_label = st.selectbox("Typ", options=[rt.value for rt in ResourceType], key="rank_kw_rt")
+        resource_type = ResourceType(rt_label)
+        cache_key = f"_items_{resource_type.value}"
+        if cache_key in st.session_state and st.session_state[cache_key]:
+            items_list = st.session_state[cache_key]
+            with rank_col2:
+                labels = [f"{it['title']} ({it['handle']})" for it in items_list]
+                sel_idx = st.selectbox("Ressource", options=range(len(labels)), format_func=lambda i: labels[i], key="rank_kw_sel")
+                page_url = _build_page_url(cfg, resource_type, items_list[sel_idx]["handle"])
+            st.caption(f"URL: `{page_url}`")
+        else:
+            st.info("Lade zuerst Ressourcen im SEO-Tab.")
+
+    if st.button("Keywords abrufen", type="primary", use_container_width=True, key="btn_rank_kw"):
+        with st.spinner("Lade Keyword-Daten..."):
+            if page_url:
+                kws = tracker.get_page_rankings(page_url, days=days)
+            else:
+                kws = tracker.get_site_keywords(days=days, limit=100)
+            st.session_state["_rank_kw_data"] = kws
+            st.session_state["_rank_kw_url"] = page_url or cfg.get_storefront_url()
+
+    kws: list[RankingData] = st.session_state.get("_rank_kw_data", [])
+    kw_url = st.session_state.get("_rank_kw_url", "")
+
+    if not kws:
+        st.info("Klicke 'Keywords abrufen' um die Daten zu laden.")
+        return
+
+    # --- Filters ---
+    f1, f2 = st.columns(2)
+    with f1:
+        pos_filter = st.selectbox("Position", ["Alle", "Top 3", "Seite 1 (1-10)", "Seite 2 (11-20)", "Seite 3+ (21+)"], key="rank_kw_pos_f")
+    with f2:
+        min_imp = st.number_input("Min. Impressionen", min_value=0, value=0, key="rank_kw_min_imp")
+
+    filtered = list(kws)
+    if pos_filter == "Top 3":
+        filtered = [k for k in filtered if k.position <= 3]
+    elif pos_filter == "Seite 1 (1-10)":
+        filtered = [k for k in filtered if k.position <= 10]
+    elif pos_filter == "Seite 2 (11-20)":
+        filtered = [k for k in filtered if 10 < k.position <= 20]
+    elif pos_filter == "Seite 3+ (21+)":
+        filtered = [k for k in filtered if k.position > 20]
+    if min_imp > 0:
+        filtered = [k for k in filtered if k.impressions >= min_imp]
+
+    st.caption(f"**{len(filtered)}** von {len(kws)} Keywords angezeigt")
+
+    # --- Table ---
+    rows = []
+    for rd in filtered:
+        if rd.position <= 3:
+            badge = '<span class="badge-winner">Top 3</span>'
+        elif rd.position <= 10:
+            badge = '<span class="badge-winner">Seite 1</span>'
+        elif rd.position <= 20:
+            badge = '<span class="badge-opportunity">Seite 2</span>'
+        else:
+            badge = '<span class="badge-loser">Seite 3+</span>'
+        rows.append({
+            "Keyword": rd.keyword,
+            "Position": round(rd.position, 1),
+            "Klicks": rd.clicks,
+            "Impressionen": rd.impressions,
+            "CTR %": round(rd.ctr * 100, 1),
+        })
+
+    if rows:
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+    # --- Snapshot & Export ---
+    snap_col, export_col = st.columns(2)
+    with snap_col:
+        if st.button("Snapshot speichern", key="btn_snap_kw"):
+            tracker.save_snapshot(kws)
+            st.success(f"Snapshot mit {len(kws)} Keywords gespeichert!")
+    with export_col:
+        if rows:
+            csv = pd.DataFrame(rows).to_csv(index=False)
+            st.download_button("CSV Export", csv, file_name="keywords.csv", mime="text/csv", key="btn_csv_kw")
+
+    # --- Per-keyword trend ---
+    st.markdown("---")
+    st.markdown("#### Keyword-Trend")
+    history = tracker.load_history(kw_url)
+    if history:
+        df_hist = pd.DataFrame(history)
+        kw_list = sorted(df_hist["keyword"].unique().tolist()) if "keyword" in df_hist.columns else []
+        if kw_list:
+            sel_kw = st.selectbox("Keyword waehlen", options=kw_list, key="rank_kw_trend_sel")
+            trend = tracker.get_trend(kw_url, sel_kw)
+            if trend and len(trend) >= 2:
+                trend_df = pd.DataFrame(trend)
+                fig = _create_ranking_trend(trend_df, "date", "position", f'Position: "{sel_kw}"')
+                _plotly_chart(fig)
+            elif trend:
+                st.info("Mindestens 2 Datenpunkte noetig fuer den Trend-Chart.")
+            else:
+                st.info("Keine historischen Daten fuer dieses Keyword.")
+    else:
+        st.caption("Speichere Snapshots um Keyword-Trends zu verfolgen.")
+
+
+def _render_rankings_competitors(tracker: RankingTracker, cfg: AppConfig) -> None:
+    """Sub-tab: Competitor management and keyword comparison."""
+    comp_store = CompetitorStore()
+
+    st.markdown("#### Konkurrenz verwalten")
+
+    # --- Add competitor ---
+    with st.expander("Neuen Konkurrenten hinzufuegen", expanded=False):
+        c1, c2 = st.columns(2)
+        with c1:
+            comp_name = st.text_input("Name", placeholder="z.B. Dampfplanet", key="comp_add_name")
+        with c2:
+            comp_domain = st.text_input("Domain", placeholder="z.B. www.dampfplanet.de", key="comp_add_domain")
+        if st.button("Hinzufuegen", key="btn_add_comp", disabled=not comp_name or not comp_domain):
+            comp_store.add_competitor(comp_name, comp_domain)
+            st.success(f"Konkurrent '{comp_name}' hinzugefuegt!")
+            st.rerun()
+
+    # --- List competitors ---
+    competitors = comp_store.list_competitors()
+    if not competitors:
+        st.info(
+            "Noch keine Konkurrenten hinterlegt. Fuege oben deine Wettbewerber hinzu, "
+            "um deren Positionen mit deinen zu vergleichen."
+        )
+        return
+
+    st.markdown("**Aktive Konkurrenten:**")
+    for comp in competitors:
+        cc1, cc2, cc3 = st.columns([2, 2, 1])
+        with cc1:
+            st.markdown(f"**{comp.name}**")
+        with cc2:
+            st.caption(comp.domain)
+        with cc3:
+            if st.button("Entfernen", key=f"btn_rm_comp_{comp.id}"):
+                comp_store.remove_competitor(comp.id)
+                st.rerun()
+
+    st.markdown("---")
+
+    # --- Manual position entry ---
+    st.markdown("#### Konkurrenz-Positionen eintragen")
+    st.caption(
+        "Trage hier die Google-Positionen deiner Konkurrenten fuer bestimmte Keywords ein. "
+        "Suche das Keyword bei Google und notiere die Position."
+    )
+
+    entry_kw = st.text_input("Keyword", placeholder="z.B. einweg e-zigarette kaufen", key="comp_entry_kw")
+    if entry_kw and competitors:
+        entry_cols = st.columns(len(competitors))
+        positions: dict[str, float] = {}
+        for i, comp in enumerate(competitors):
+            with entry_cols[i]:
+                pos = st.number_input(
+                    f"{comp.name}",
+                    min_value=0.0, max_value=100.0, value=0.0, step=1.0,
+                    key=f"comp_pos_{comp.id}",
+                    help="0 = nicht in Top 100",
+                )
+                if pos > 0:
+                    positions[comp.id] = pos
+
+        if st.button("Positionen speichern", key="btn_save_comp_pos", disabled=not positions):
+            for comp_id, pos in positions.items():
+                comp_store.save_competitor_ranking(comp_id, entry_kw, pos, source="manual")
+            st.success(f"Positionen fuer '{entry_kw}' gespeichert!")
+            st.rerun()
+
+    st.markdown("---")
+
+    # --- Keyword comparison ---
+    st.markdown("#### Vergleich: Deine Position vs. Konkurrenz")
+    tracked_kws = comp_store.get_all_tracked_keywords()
+    if not tracked_kws:
+        st.caption("Noch keine Keywords mit Konkurrenz-Daten. Trage oben Positionen ein.")
+        return
+
+    sel_comp_kw = st.selectbox("Keyword waehlen", options=tracked_kws, key="comp_compare_kw")
+
+    # Get our position for this keyword from GSC
+    site_kws = st.session_state.get("_rank_ov", {}).get("keywords", [])
+    our_pos = 0.0
+    for k in site_kws:
+        if k.keyword.lower() == sel_comp_kw.lower():
+            our_pos = k.position
+            break
+
+    if our_pos == 0:
+        our_pos_input = st.number_input(
+            "Deine Position (aus GSC oder manuell)", min_value=0.0, value=0.0, step=1.0,
+            key="comp_our_pos", help="0 = nicht gerankt",
+        )
+        our_pos = our_pos_input
+
+    comparison = comp_store.get_keyword_comparison(sel_comp_kw, our_pos)
+    if comparison:
+        # Visual chart
+        fig = _create_competitor_comparison(comparison, our_pos, sel_comp_kw)
+        _plotly_chart(fig)
+
+        # Detail table
+        comp_rows = []
+        for c in comparison:
+            gap = c["gap"]
+            if gap > 0:
+                gap_str = f'<span class="trend-up">+{gap:.0f} (wir sind besser)</span>'
+            elif gap < 0:
+                gap_str = f'<span class="trend-down">{gap:.0f} (Konkurrent ist besser)</span>'
+            else:
+                gap_str = '<span class="trend-neutral">Gleich</span>'
+            comp_rows.append({
+                "Konkurrent": c["competitor_name"],
+                "Domain": c["competitor_domain"],
+                "Position": c["competitor_position"],
+                "Unsere Position": our_pos,
+                "Differenz": round(gap, 1),
+                "Quelle": c["source"],
+            })
+        st.dataframe(pd.DataFrame(comp_rows), use_container_width=True, hide_index=True)
+    else:
+        st.caption("Keine Vergleichsdaten fuer dieses Keyword.")
+
+
+def _render_rankings_opportunities(tracker: RankingTracker, cfg: AppConfig) -> None:
+    """Sub-tab: Quick wins, cannibalization, content gaps."""
+    days = st.selectbox(
+        "Zeitraum", options=[7, 14, 28, 90], index=2,
+        format_func=lambda d: f"Letzte {d} Tage", key="rank_opp_days",
+    )
+
+    if st.button("Chancen analysieren", type="primary", key="btn_rank_opp"):
+        with st.spinner("Analysiere Ranking-Chancen..."):
+            opps = tracker.get_opportunities(days=days)
+            cannibal = tracker.get_cannibalization(days=days)
+            st.session_state["_rank_opps"] = opps
+            st.session_state["_rank_cannibal"] = cannibal
+
+    # --- Quick Wins ---
+    opps = st.session_state.get("_rank_opps", [])
+    cannibal = st.session_state.get("_rank_cannibal", [])
+
+    if not opps and not cannibal:
+        st.info("Klicke 'Chancen analysieren' um Optimierungs-Potenziale zu finden.")
+        return
+
+    if opps:
+        st.markdown("#### Quick Wins — Keywords mit Potenzial")
+        st.caption(
+            "Keywords auf Position 5-25 mit hohen Impressionen. "
+            "Wenn du hier die Position verbesserst, bekommst du mehr Traffic."
+        )
+
+        opp_rows = []
+        for o in opps:
+            opp_rows.append({
+                "Keyword": o["keyword"],
+                "Position": o["position"],
+                "Impressionen": o["impressions"],
+                "Klicks (aktuell)": o["clicks"],
+                "CTR %": o["ctr"],
+                "Geschaetzte Klicks (Top 3)": o["estimated_clicks"],
+                "Potenzial +": o["potential_gain"],
+            })
+        df_opp = pd.DataFrame(opp_rows)
+        st.dataframe(df_opp, use_container_width=True, hide_index=True)
+
+        # Summary
+        total_potential = sum(o["potential_gain"] for o in opps)
+        st.markdown(
+            f'<div class="section-gradient-green">'
+            f"<strong>Gesamtes Traffic-Potenzial:</strong> ~{total_potential} zusaetzliche Klicks/Monat "
+            f"wenn alle Quick Wins in die Top 3 kommen"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+    else:
+        st.caption("Keine Quick-Win Keywords gefunden.")
+
+    st.markdown("---")
+
+    # --- Cannibalization ---
+    if cannibal:
+        st.markdown("#### Kannibalisierung — Eigene Seiten konkurrieren")
+        st.caption(
+            "Bei diesen Keywords ranken mehrere deiner Seiten. "
+            "Google weiss nicht welche Seite relevant ist — das schadet dem Ranking."
+        )
+
+        for ci, item in enumerate(cannibal):
+            with st.expander(
+                f"**{item['keyword']}** — {item['page_count']} Seiten, "
+                f"{item['total_impressions']} Impressionen",
+                expanded=ci == 0,
+            ):
+                for p in item["pages"]:
+                    pos_str = f"Position {p['position']}"
+                    clicks_str = f"{p['clicks']} Klicks, {p['impressions']} Impressionen"
+                    st.markdown(f"- **{pos_str}** — {p['url']}\n  {clicks_str}")
+                st.caption(
+                    "Tipp: Lege eine Hauptseite fuer dieses Keyword fest und leite die "
+                    "anderen per 301-Redirect oder Canonical-Tag um."
+                )
+    else:
+        st.caption("Keine Keyword-Kannibalisierung erkannt.")
 
 
 # ---------------------------------------------------------------------------

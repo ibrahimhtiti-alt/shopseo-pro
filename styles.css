@@ -547,4 +547,216 @@ hr {
     margin: 0.5rem 0 1rem 0;
     color: inherit;
 }
+/* ============================================================
+   NEW: Design Modernization — Glass Cards, Animations, Charts
+   ============================================================ */
+
+/* --- Reusable glass card --- */
+.glass-card {
+    background: rgba(255, 255, 255, 0.5);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(0, 0, 0, 0.04);
+    border-radius: 16px;
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.glass-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+@media (prefers-color-scheme: dark) {
+    .glass-card {
+        background: rgba(255, 255, 255, 0.06);
+        border-color: rgba(255, 255, 255, 0.08);
+    }
+    .glass-card:hover {
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    }
+}
+
+/* --- Comparison card wrapper --- */
+.comparison-card {
+    background: rgba(255, 255, 255, 0.4);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 14px;
+    padding: 1rem;
+    margin: 0.5rem 0;
+    animation: fadeIn 0.3s ease;
+}
+@media (prefers-color-scheme: dark) {
+    .comparison-card {
+        background: rgba(255, 255, 255, 0.04);
+        border-color: rgba(255, 255, 255, 0.06);
+    }
+}
+
+/* --- Diff highlighting --- */
+.diff-added {
+    background: rgba(52, 199, 89, 0.12);
+    border-radius: 3px;
+    padding: 0 3px;
+}
+.diff-removed {
+    background: rgba(255, 59, 48, 0.12);
+    text-decoration: line-through;
+    border-radius: 3px;
+    padding: 0 3px;
+}
+
+/* --- Product card for batch tab --- */
+.product-card {
+    background: rgba(255, 255, 255, 0.5);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 12px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.5rem;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    border-top: 3px solid rgba(142, 142, 147, 0.3);
+}
+.product-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+.product-card-optimized {
+    border-top-color: #34C759;
+}
+.product-card-pending {
+    border-top-color: rgba(142, 142, 147, 0.3);
+}
+@media (prefers-color-scheme: dark) {
+    .product-card {
+        background: rgba(255, 255, 255, 0.05);
+        border-color: rgba(255, 255, 255, 0.08);
+    }
+}
+
+/* --- Section gradient backgrounds --- */
+.section-gradient-blue {
+    background: linear-gradient(135deg, rgba(0, 122, 255, 0.06), rgba(88, 86, 214, 0.04));
+    border-radius: 16px;
+    padding: 1.25rem;
+    margin: 0.5rem 0 1rem 0;
+}
+.section-gradient-green {
+    background: linear-gradient(135deg, rgba(52, 199, 89, 0.06), rgba(48, 176, 80, 0.04));
+    border-radius: 16px;
+    padding: 1.25rem;
+    margin: 0.5rem 0 1rem 0;
+}
+
+/* --- Big KPI numbers --- */
+.stat-number {
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1.2;
+}
+.stat-label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    opacity: 0.55;
+    margin-top: 0.25rem;
+}
+
+/* --- Trend indicators --- */
+.trend-up {
+    color: #34C759;
+    font-weight: 600;
+}
+.trend-down {
+    color: #FF3B30;
+    font-weight: 600;
+}
+.trend-neutral {
+    color: #8E8E93;
+    font-weight: 500;
+}
+
+/* --- Winner/Loser badges --- */
+.badge-winner {
+    display: inline-block;
+    background: rgba(52, 199, 89, 0.12);
+    color: #248A3D;
+    border: 1px solid rgba(52, 199, 89, 0.2);
+    border-radius: 20px;
+    padding: 2px 10px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+.badge-loser {
+    display: inline-block;
+    background: rgba(255, 59, 48, 0.12);
+    color: #FF3B30;
+    border: 1px solid rgba(255, 59, 48, 0.2);
+    border-radius: 20px;
+    padding: 2px 10px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+.badge-opportunity {
+    display: inline-block;
+    background: rgba(255, 159, 10, 0.12);
+    color: #CC7700;
+    border: 1px solid rgba(255, 159, 10, 0.2);
+    border-radius: 20px;
+    padding: 2px 10px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+@media (prefers-color-scheme: dark) {
+    .badge-winner { color: #69DB7C; }
+    .badge-loser { color: #FF6B6B; }
+    .badge-opportunity { color: #FFB340; }
+}
+
+/* --- Competitor position bar --- */
+.position-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 4px 0;
+}
+.position-bar-fill {
+    height: 8px;
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+.position-bar-ours {
+    background: linear-gradient(90deg, #007AFF, #5856D6);
+}
+.position-bar-competitor {
+    background: linear-gradient(90deg, #FF9F0A, #FF6B00);
+}
+
+/* --- Animations --- */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+.animate-fade { animation: fadeIn 0.3s ease; }
+.animate-slide { animation: slideUp 0.3s ease; }
+.animate-pulse { animation: pulse 2s infinite; }
+
+/* --- Plotly chart container cleanup --- */
+.stPlotlyChart {
+    border-radius: 12px;
+    overflow: hidden;
+}
 </style>

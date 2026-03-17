@@ -241,6 +241,42 @@ class ComplianceWarning(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Competitor & Ranking Intelligence models
+# ---------------------------------------------------------------------------
+
+class Competitor(BaseModel):
+    """A tracked competitor domain."""
+
+    id: str  # slug, e.g. "dampfplanet"
+    name: str  # Display name
+    domain: str  # e.g. "www.dampfplanet.de"
+    added_date: str = ""
+
+
+class CompetitorRanking(BaseModel):
+    """A single competitor position data point."""
+
+    competitor_id: str
+    keyword: str
+    position: float = 0.0
+    url: str = ""  # The competitor page that ranks
+    date: str = ""
+    source: str = "manual"  # "manual", "google_cse", "serpapi"
+
+
+class KeywordAlert(BaseModel):
+    """Alert for significant keyword position changes."""
+
+    keyword: str
+    url: str = ""
+    old_position: float
+    new_position: float
+    change: float  # positive = improved (moved up)
+    date: str = ""
+    alert_type: str = ""  # "winner", "loser", "new", "lost"
+
+
+# ---------------------------------------------------------------------------
 # Custom exceptions
 # ---------------------------------------------------------------------------
 

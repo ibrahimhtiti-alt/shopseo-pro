@@ -216,6 +216,27 @@ class BackupStore:
             "recent_backups": [self._row_to_entry(r) for r in recent_rows],
         }
 
+    def get_daily_optimization_counts(self, days: int = 30) -> list[dict]:
+        """Return daily optimization counts for the last *days* days.
+
+        Returns list of dicts: {date: 'YYYY-MM-DD', count: int}.
+        """
+        cutoff = (
+            datetime.now(timezone.utc) - timedelta(days=days)
+        ).isoformat()
+        with sqlite3.connect(str(self.db_path)) as conn:
+            rows = conn.execute(
+                """
+                SELECT DATE(timestamp) AS day, COUNT(*) AS cnt
+                FROM backups
+                WHERE rolled_back = 0 AND after_json != '' AND timestamp >= ?
+                GROUP BY day
+                ORDER BY day ASC
+                """,
+                (cutoff,),
+            ).fetchall()
+        return [{"date": row[0], "count": row[1]} for row in rows]
+
     def list_backup_groups(self, limit: int = 20) -> list[dict]:
         """Group backups by minute-level timestamp for batch rollback.
 

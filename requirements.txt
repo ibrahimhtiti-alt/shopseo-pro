@@ -9,3 +9,4 @@ nh3>=0.2.14
 pandas>=2.0.0
 google-api-python-client>=2.100.0
 google-auth>=2.22.0
+plotly>=5.18.0
