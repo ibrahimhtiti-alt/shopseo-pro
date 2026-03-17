@@ -1,7 +1,7 @@
 # ShopSEO Pro — Projekt-Kontext für Claude Code
 
 ## Was ist das?
-KI-gestützte SEO-Optimierung für den Shopify Vape-Shop **myvapez.de**. Streamlit-App mit Docker-Deployment auf Hostinger VPS.
+KI-gestützte SEO-Optimierung für Shopify-Stores. Streamlit-App mit Docker-Deployment auf VPS.
 
 ## Techstack
 - **Python 3.14** (lokal), **Python 3.12** (Docker)
@@ -10,7 +10,7 @@ KI-gestützte SEO-Optimierung für den Shopify Vape-Shop **myvapez.de**. Streaml
 - **KI-Provider:** OpenRouter (Gemini, Claude, GPT) oder Anthropic direkt
 - **SQLite** — Backup-Datenbank
 - **Docker + docker-compose** — Deployment
-- **GitHub:** https://github.com/ibrahimhtiti-alt/shopseo-pro (PUBLIC)
+- **GitHub:** Private oder Public Repository (keine Credentials committen!)
 
 ## Architektur & Dateien
 
@@ -64,12 +64,11 @@ cd "C:\Users\L0cky\Documents\Seo Programm"
 streamlit run app.py
 ```
 
-### VPS (Hostinger KVM 2)
-- **IP:** 72.62.92.236
+### VPS
 - **OS:** Ubuntu 24.04
-- **App-URL:** http://72.62.92.236:8501
 - **Projekt-Pfad:** /opt/shopseo-pro
 - **Docker Container:** shopseo-pro
+- VPS-IP und App-URL stehen in der lokalen `ANLEITUNG-FÜR-IBO.txt` (nicht im Repo)
 
 ### Update-Workflow
 ```bash

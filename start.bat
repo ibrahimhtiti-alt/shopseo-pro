@@ -1,5 +1,5 @@
 @echo off
-title SEO Tool - myvapez.de
+title ShopSEO Pro
 cd /d "%~dp0"
 
 REM Virtuelle Umgebung aktivieren

@@ -2,7 +2,7 @@
 
 ## Beschreibung
 
-Eine Streamlit-Webanwendung zur automatisierten SEO-Optimierung des Shopify Vape-Stores **myvapez.de**.
+Eine Streamlit-Webanwendung zur automatisierten SEO-Optimierung von Shopify-Stores.
 
 ### Funktionen
 
@@ -54,7 +54,7 @@ pip install -r requirements.txt
 | `SHOPIFY_STORE_URL` | `your-store.myshopify.com` |
 | `SHOPIFY_ACCESS_TOKEN` | Admin API Token aus Shopify Admin → Settings → Apps → Develop apps |
 | `ANTHROPIC_API_KEY` | Von [console.anthropic.com](https://console.anthropic.com) |
-| `STOREFRONT_URL` | `https://www.myvapez.de` (die öffentliche Shop-URL) |
+| `STOREFRONT_URL` | `https://www.dein-shop.de` (die öffentliche Shop-URL) |
 | `GOOGLE_CREDENTIALS_PATH` | Pfad zur Service-Account JSON (optional) |
 
 ---
@@ -88,9 +88,9 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-Default Login: `admin` / `seo-admin-2024`
+Login-Daten werden in der `.env` Datei konfiguriert (siehe Konfiguration).
 
-> **Hinweis:** Bitte nach dem ersten Login das Passwort ändern.
+> **Hinweis:** Standard-Passwort nach dem ersten Login unbedingt ändern!
 
 ---
 
