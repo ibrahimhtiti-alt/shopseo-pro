@@ -1802,6 +1802,26 @@ def _render_tab_batch() -> None:
         key="batch_count",
     )
 
+    # --- Live-Modus Checkbox (BEFORE action buttons so clicking doesn't kill running optimization) ---
+    live_col1, live_col2 = st.columns([1, 3])
+    with live_col1:
+        st.checkbox(
+            "Direkt live schalten",
+            key="bulk_auto_publish",
+            help="Wenn aktiv, werden Änderungen direkt in Shopify geschrieben (mit Backup). Sonst nur Vorschau.",
+        )
+    with live_col2:
+        if st.session_state.get("bulk_auto_publish", False):
+            st.markdown(
+                "✅ **Live-Modus** — Änderungen werden direkt in Shopify geschrieben. "
+                "Für jedes Produkt wird ein Backup erstellt."
+            )
+        else:
+            st.markdown(
+                "🟡 **Vorschau-Modus** — KI-Vorschläge werden nur generiert, "
+                "**nicht** in Shopify geschrieben. Du kannst danach einzeln oder alle auf einmal freigeben."
+            )
+
     # --- Action buttons ---
     action_col1, action_col2, action_col3 = st.columns(3)
 
@@ -2352,25 +2372,12 @@ def _run_bulk_optimization(
     st.markdown("---")
     st.markdown("### Bulk-Optimierung läuft...")
 
-    # Mode selection
-    mode_col1, mode_col2 = st.columns([1, 2])
-    with mode_col1:
-        auto_publish = st.checkbox(
-            "Direkt live schalten",
-            value=False,
-            key="bulk_auto_publish",
-        )
-    with mode_col2:
-        if auto_publish:
-            st.markdown(
-                "✅ **Live-Modus** — Änderungen werden direkt in Shopify geschrieben. "
-                "Für jedes Produkt wird ein Backup erstellt."
-            )
-        else:
-            st.markdown(
-                "🟡 **Vorschau-Modus** — KI-Vorschläge werden nur generiert, "
-                "**nicht** in Shopify geschrieben. Du kannst danach einzeln oder alle auf einmal freigeben."
-            )
+    # Read auto-publish setting from session state (checkbox is rendered BEFORE optimization starts)
+    auto_publish = st.session_state.get("bulk_auto_publish", False)
+    if auto_publish:
+        st.info("✅ **Live-Modus** — Änderungen werden direkt in Shopify geschrieben.", icon="✅")
+    else:
+        st.info("🟡 **Vorschau-Modus** — Nur KI-Vorschläge, nichts wird geschrieben.", icon="🟡")
 
     total = len(items)
     progress = st.progress(0, text=f"Starte Bulk-Optimierung für {total} Produkte...")
