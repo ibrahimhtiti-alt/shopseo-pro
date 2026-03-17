@@ -968,7 +968,7 @@ def _render_tab_seo() -> None:
     # --- Resource selection ---
     st.markdown("### Ressource wählen")
 
-    sel_col1, sel_col2 = st.columns([1, 3])
+    sel_col1, sel_col2, sel_col3 = st.columns([1, 2, 1])
 
     with sel_col1:
         resource_type_label = st.selectbox(
@@ -999,6 +999,33 @@ def _render_tab_seo() -> None:
             "Suche", placeholder="Produkt suchen...", key="item_search",
         )
 
+    with sel_col3:
+        seo_status_filter = st.selectbox(
+            "Status",
+            options=[
+                "Alle",
+                "Nicht optimiert",
+                "Optimiert (3 Tage)",
+                "Optimiert (7 Tage)",
+                "Optimiert (30 Tage)",
+                "Nicht optimiert (3+ Tage)",
+                "Nicht optimiert (7+ Tage)",
+            ],
+            key="seo_status_filter",
+            help="Filtere nach Optimierungs-Status",
+        )
+
+    # Pre-load optimization data for status filter
+    _seo_opt_map: dict[int, str] = {}
+    if seo_status_filter != "Alle":
+        _bs_filter = BackupStore()
+        if "3 Tage" in seo_status_filter:
+            _seo_opt_map = _bs_filter.get_optimized_resource_ids(since_days=3)
+        elif "7 Tage" in seo_status_filter or "7+" in seo_status_filter:
+            _seo_opt_map = _bs_filter.get_optimized_resource_ids(since_days=7)
+        elif "30 Tage" in seo_status_filter:
+            _seo_opt_map = _bs_filter.get_optimized_resource_ids(since_days=30)
+
     # Filter items based on search
     if search_query:
         filtered_items = [
@@ -1008,6 +1035,18 @@ def _render_tab_seo() -> None:
         ]
     else:
         filtered_items = items_list
+
+    # Apply status filter
+    if seo_status_filter == "Nicht optimiert":
+        # Never optimized (check all time)
+        _all_opt = BackupStore().get_optimized_resource_ids(since_days=9999)
+        filtered_items = [it for it in filtered_items if it["id"] not in _all_opt]
+    elif seo_status_filter == "Nicht optimiert (3+ Tage)":
+        filtered_items = [it for it in filtered_items if it["id"] not in _seo_opt_map]
+    elif seo_status_filter == "Nicht optimiert (7+ Tage)":
+        filtered_items = [it for it in filtered_items if it["id"] not in _seo_opt_map]
+    elif "Optimiert" in seo_status_filter and "Nicht" not in seo_status_filter:
+        filtered_items = [it for it in filtered_items if it["id"] in _seo_opt_map]
 
     if not filtered_items:
         st.warning(f"Keine Ergebnisse für '{search_query}'.")
