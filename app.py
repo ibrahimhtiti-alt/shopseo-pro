@@ -1685,22 +1685,80 @@ def _render_tab_batch() -> None:
             st.metric("Zu verarbeiten", len(pending_items))
 
     # Show filtered product list with checkboxes for selection
-    with st.expander(f"Produkte auswählen ({len(filtered_items)})", expanded=False):
-        # Select all / none toggle
-        sel_col1, sel_col2 = st.columns([1, 1])
-        with sel_col1:
-            if st.button("✅ Alle auswählen", key="smart_select_all", use_container_width=True):
-                for item in display_items[:50]:
-                    st.session_state[f"smart_sel_{item['id']}"] = True
+    _MAX_SELECTION = 50
+    # Count currently selected across ALL display_items
+    _all_selected_ids = {
+        item["id"] for item in display_items
+        if st.session_state.get(f"smart_sel_{item['id']}", False)
+    }
+
+    with st.expander(
+        f"Produkte auswählen — {len(_all_selected_ids)}/{_MAX_SELECTION} ausgewählt ({len(display_items)} verfügbar)",
+        expanded=False,
+    ):
+        # Search within product list
+        pick_search = st.text_input(
+            "Produkt suchen",
+            placeholder="Name eingeben um zu filtern...",
+            key="smart_pick_search",
+        )
+        if pick_search:
+            pick_filtered = [
+                it for it in display_items
+                if pick_search.lower() in it["title"].lower()
+                or pick_search.lower() in it.get("handle", "").lower()
+            ]
+        else:
+            pick_filtered = display_items
+
+        # Pagination
+        _PAGE_SIZE = 30
+        total_pages = max(1, (len(pick_filtered) + _PAGE_SIZE - 1) // _PAGE_SIZE)
+        page_col1, page_col2, page_col3 = st.columns([1, 2, 1])
+        with page_col1:
+            current_page = st.number_input(
+                "Seite", min_value=1, max_value=total_pages,
+                value=1, key="smart_pick_page",
+            )
+        with page_col2:
+            st.caption(f"Seite {current_page} von {total_pages} ({len(pick_filtered)} Produkte)")
+        with page_col3:
+            pass
+
+        # Select all on page / none buttons
+        page_start = (current_page - 1) * _PAGE_SIZE
+        page_items = pick_filtered[page_start : page_start + _PAGE_SIZE]
+
+        btn_col1, btn_col2 = st.columns([1, 1])
+        with btn_col1:
+            if st.button(
+                f"Seite auswählen ({len(page_items)})",
+                key="smart_select_page",
+                use_container_width=True,
+            ):
+                added = 0
+                for item in page_items:
+                    if len(_all_selected_ids) + added >= _MAX_SELECTION:
+                        break
+                    if item["id"] not in _all_selected_ids:
+                        st.session_state[f"smart_sel_{item['id']}"] = True
+                        added += 1
+                    else:
+                        st.session_state[f"smart_sel_{item['id']}"] = True
+                if added == 0 and len(_all_selected_ids) >= _MAX_SELECTION:
+                    st.toast(f"Maximum von {_MAX_SELECTION} Produkten erreicht!", icon="⚠️")
                 st.rerun()
-        with sel_col2:
-            if st.button("❌ Keine auswählen", key="smart_select_none", use_container_width=True):
-                for item in display_items[:50]:
+        with btn_col2:
+            if st.button("Alle abwählen", key="smart_select_none", use_container_width=True):
+                for item in display_items:
                     st.session_state[f"smart_sel_{item['id']}"] = False
                 st.rerun()
 
+        if len(_all_selected_ids) >= _MAX_SELECTION:
+            st.warning(f"Maximum von {_MAX_SELECTION} Produkten erreicht. Wähle zuerst andere ab.")
+
         st.divider()
-        for i, item in enumerate(display_items[:50]):
+        for item in page_items:
             last_opt = item.get("_last_optimized")
             if last_opt:
                 try:
@@ -1710,22 +1768,23 @@ def _render_tab_batch() -> None:
                 label = f"{item['title']}  ·  optimiert: {ts}"
             else:
                 label = item["title"]
+            item_id = item["id"]
+            is_selected = st.session_state.get(f"smart_sel_{item_id}", False)
+            at_limit = len(_all_selected_ids) >= _MAX_SELECTION and not is_selected
             st.checkbox(
                 label,
-                key=f"smart_sel_{item['id']}",
-                value=st.session_state.get(f"smart_sel_{item['id']}", False),
+                key=f"smart_sel_{item_id}",
+                disabled=at_limit,
             )
-        if len(display_items) > 50:
-            st.caption(f"... und {len(display_items) - 50} weitere")
 
-    # Count selected items
+    # Count selected items (from ALL display_items, not just current page)
     selected_ids = {
-        item["id"] for item in display_items[:50]
+        item["id"] for item in display_items
         if st.session_state.get(f"smart_sel_{item['id']}", False)
     }
     selected_items = [it for it in display_items if it["id"] in selected_ids]
     if selected_ids:
-        st.caption(f"**{len(selected_ids)}** Produkt(e) ausgewählt")
+        st.caption(f"**{len(selected_ids)}** Produkt(e) ausgewählt (max. {_MAX_SELECTION})")
 
     if not pending_items:
         st.success(
