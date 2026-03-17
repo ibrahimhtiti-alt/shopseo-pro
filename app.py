@@ -1061,6 +1061,26 @@ def _render_tab_seo() -> None:
     )
     selected_item = filtered_items[selected_idx]
 
+    # --- Live link to the page ---
+    storefront_url = cfg.get_storefront_url()
+    handle = selected_item.get("handle", "")
+    if handle and storefront_url:
+        if resource_type == ResourceType.PRODUCT:
+            live_url = f"{storefront_url}/products/{handle}"
+        elif resource_type == ResourceType.COLLECTION:
+            live_url = f"{storefront_url}/collections/{handle}"
+        else:
+            live_url = f"{storefront_url}/pages/{handle}"
+        st.markdown(
+            f'<a href="{live_url}" target="_blank" style="'
+            f'display:inline-block;margin:6px 0 10px;padding:4px 12px;'
+            f'border-radius:6px;font-size:13px;text-decoration:none;'
+            f'background:rgba(0,122,255,0.1);color:#007AFF;'
+            f'border:1px solid rgba(0,122,255,0.2);">'
+            f'🔗 {live_url}</a>',
+            unsafe_allow_html=True,
+        )
+
     # --- Optimization history for selected item ---
     try:
         _bs = BackupStore()
