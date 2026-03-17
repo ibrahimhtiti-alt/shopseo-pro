@@ -16,7 +16,7 @@ import logging
 import re
 import time
 import xml.etree.ElementTree as ET
-from typing import Optional
+from typing import Callable, Optional
 
 import requests
 from bs4 import BeautifulSoup
@@ -24,11 +24,52 @@ from bs4 import BeautifulSoup
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Simple in-memory cache for Google Suggest results (avoids duplicate API calls)
+# Persistent disk-backed cache for Google Suggest results
+# Falls back to in-memory if disk write fails. TTL = 7 days.
 # ---------------------------------------------------------------------------
 
-_suggest_cache: dict[str, list[str]] = {}
-_CACHE_MAX_SIZE = 500  # Max cached queries to prevent memory bloat
+from pathlib import Path as _Path
+
+_CACHE_FILE = _Path(__file__).resolve().parent / "data" / "keyword_cache.json"
+if not _CACHE_FILE.parent.is_dir():
+    _CACHE_FILE = _Path(__file__).resolve().parent / "keyword_cache.json"
+
+_CACHE_MAX_SIZE = 2000
+_CACHE_TTL_SECONDS = 7 * 24 * 3600  # 7 days
+
+_suggest_cache: dict[str, dict] = {}  # key -> {"results": [...], "ts": float}
+_cache_loaded = False
+
+
+def _load_cache_from_disk() -> None:
+    """Load the cache from disk (once)."""
+    global _suggest_cache, _cache_loaded
+    if _cache_loaded:
+        return
+    _cache_loaded = True
+    try:
+        if _CACHE_FILE.exists():
+            raw = json.loads(_CACHE_FILE.read_text(encoding="utf-8"))
+            now = time.time()
+            # Only keep entries within TTL
+            for k, v in raw.items():
+                if isinstance(v, dict) and now - v.get("ts", 0) < _CACHE_TTL_SECONDS:
+                    _suggest_cache[k] = v
+            logger.info("Keyword-Cache geladen: %d Einträge", len(_suggest_cache))
+    except Exception as exc:
+        logger.warning("Keyword-Cache konnte nicht geladen werden: %s", exc)
+
+
+def _save_cache_to_disk() -> None:
+    """Persist the cache to disk."""
+    try:
+        _CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _CACHE_FILE.write_text(
+            json.dumps(_suggest_cache, ensure_ascii=False),
+            encoding="utf-8",
+        )
+    except Exception as exc:
+        logger.warning("Keyword-Cache konnte nicht gespeichert werden: %s", exc)
 
 
 def _cache_key(query: str, shopping: bool) -> str:
@@ -37,18 +78,27 @@ def _cache_key(query: str, shopping: bool) -> str:
 
 
 def _get_cached(key: str) -> list[str] | None:
-    """Return cached result or None."""
-    return _suggest_cache.get(key)
+    """Return cached result or None (respecting TTL)."""
+    _load_cache_from_disk()
+    entry = _suggest_cache.get(key)
+    if entry is None:
+        return None
+    if time.time() - entry.get("ts", 0) > _CACHE_TTL_SECONDS:
+        del _suggest_cache[key]
+        return None
+    return entry.get("results")
 
 
 def _set_cache(key: str, results: list[str]) -> None:
-    """Store result in cache, evicting oldest if full."""
+    """Store result in cache with timestamp, evicting oldest if full."""
+    _load_cache_from_disk()
     if len(_suggest_cache) >= _CACHE_MAX_SIZE:
-        # Remove first 100 entries (oldest)
-        keys_to_remove = list(_suggest_cache.keys())[:100]
-        for k in keys_to_remove:
+        # Remove oldest 200 entries by timestamp
+        sorted_keys = sorted(_suggest_cache.keys(), key=lambda k: _suggest_cache[k].get("ts", 0))
+        for k in sorted_keys[:200]:
             del _suggest_cache[k]
-    _suggest_cache[key] = results
+    _suggest_cache[key] = {"results": results, "ts": time.time()}
+    _save_cache_to_disk()
 
 # ---------------------------------------------------------------------------
 # German stop words
@@ -293,11 +343,17 @@ def research_keywords(
     brand: str = "",
     category: str = "",
     tags: str = "",
+    progress_callback: Callable[[float, str], None] | None = None,
 ) -> dict[str, list[str]]:
     """Run comprehensive keyword research for a product/category.
 
     Combines Google Suggest, Google Shopping Suggest, alphabet expansion,
     and smart seed generation to find the best Google SEO keywords.
+
+    Parameters
+    ----------
+    progress_callback : callable, optional
+        Called with (progress_float_0_to_1, status_text) to report progress.
 
     Returns
     -------
@@ -309,6 +365,13 @@ def research_keywords(
         - "research": Research/comparison keywords
         - "seeds_used": Which seed keywords were used (for transparency)
     """
+    def _report(pct: float, msg: str) -> None:
+        if progress_callback is not None:
+            try:
+                progress_callback(pct, msg)
+            except Exception:
+                pass
+
     # Guard: empty input → return empty result immediately
     if not product_name.strip() and not brand.strip() and not category.strip():
         logger.warning("Keyword-Recherche abgebrochen: Keine Eingabedaten.")
@@ -318,6 +381,7 @@ def research_keywords(
         }
 
     # Step 1: Generate smart seeds from product data
+    _report(0.0, "Generiere Seed-Keywords…")
     seeds = _generate_seed_keywords(product_name, brand, category, tags)
     logger.info("Keyword-Recherche mit %d Seeds: %s", len(seeds), seeds[:5])
 
@@ -337,7 +401,12 @@ def research_keywords(
             categorized[cat].append(kw)
 
     # Step 2: Google Suggest (normal + Shopping mode) for top seeds
-    for seed in seeds[:5]:
+    top_seeds = seeds[:5]
+    for si, seed in enumerate(top_seeds):
+        _report(
+            0.05 + (si / len(top_seeds)) * 0.25,
+            f"Google Suggest: Seed {si + 1}/{len(top_seeds)} -- '{seed[:30]}'",
+        )
         # Normal Google suggestions
         for s in get_google_suggestions(seed, shopping=False):
             _add_unique(s, _categorize_keyword(s))
@@ -351,11 +420,20 @@ def research_keywords(
     # Step 3: Alphabet expansion for the main seed (most important)
     main_seed = " ".join(product_name.split()[:2]) if product_name else brand
     if main_seed:
-        # Full alphabet expansion for maximum keyword discovery
-        for s in _google_alphabet_expansion(main_seed, shopping=False):
-            _add_unique(s, _categorize_keyword(s))
+        _report(0.30, f"Alphabet-Expansion: '{main_seed}' A-Z...")
+        letters = "abcdefghijklmnopqrstuvwxyz"
+        for li, char in enumerate(letters):
+            _report(
+                0.30 + (li / len(letters)) * 0.45,
+                f"Alphabet-Expansion: '{main_seed} {char.upper()}' ({li + 1}/26)",
+            )
+            suggestions = get_google_suggestions(f"{main_seed} {char}", shopping=False)
+            for s in suggestions:
+                _add_unique(s, _categorize_keyword(s))
+            time.sleep(0.15)
 
     # Step 4: Generate buying keywords if we don't have enough
+    _report(0.80, "Kaufintent-Keywords ergänzen…")
     if len(categorized["buying"]) < 3 and main_seed:
         for suffix in ["kaufen", "bestellen", "günstig kaufen", "online"]:
             for s in get_google_suggestions(f"{main_seed} {suffix}"):
@@ -363,6 +441,7 @@ def research_keywords(
             time.sleep(0.1)
 
     # Step 5: Generate question keywords if we don't have enough
+    _report(0.90, "Frage-Keywords ergänzen…")
     if len(categorized["questions"]) < 2 and main_seed:
         for prefix in ["wie", "was ist", "welche"]:
             for s in get_google_suggestions(f"{prefix} {main_seed}"):
@@ -370,6 +449,7 @@ def research_keywords(
             time.sleep(0.1)
 
     # Trim to reasonable sizes
+    _report(1.0, "Keyword-Recherche abgeschlossen!")
     result = {
         "buying": categorized["buying"][:10],
         "primary": categorized["primary"][:10],

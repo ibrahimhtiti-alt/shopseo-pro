@@ -1,0 +1,550 @@
+/* ===================================================================
+   ShopSEO Pro — Apple-inspired Design System
+   Clean, minimal, frosted glass, SF Pro typography
+   =================================================================== */
+
+/* --- Typography & Global --- */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+.stApp {
+    max-width: 1400px;
+    margin: 0 auto;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display',
+                 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Streamlit overrides for cleaner look */
+.stApp [data-testid="stHeader"] {
+    background: transparent;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+}
+
+/* Smoother sidebar */
+section[data-testid="stSidebar"] {
+    background: rgba(245, 245, 247, 0.72) !important;
+    backdrop-filter: blur(40px) saturate(180%);
+    -webkit-backdrop-filter: blur(40px) saturate(180%);
+    border-right: 1px solid rgba(0, 0, 0, 0.06);
+}
+@media (prefers-color-scheme: dark) {
+    section[data-testid="stSidebar"] {
+        background: rgba(28, 28, 30, 0.72) !important;
+        border-right: 1px solid rgba(255, 255, 255, 0.08);
+    }
+}
+
+/* Tabs — pill style */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 4px;
+    background: rgba(118, 118, 128, 0.08);
+    border-radius: 12px;
+    padding: 3px;
+}
+.stTabs [data-baseweb="tab"] {
+    border-radius: 10px;
+    padding: 8px 16px;
+    font-weight: 500;
+    font-size: 0.85rem;
+    letter-spacing: -0.01em;
+    color: inherit;
+    opacity: 0.6;
+    transition: all 0.2s ease;
+}
+.stTabs [aria-selected="true"] {
+    background: rgba(255, 255, 255, 0.9) !important;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08), 0 0.5px 1px rgba(0, 0, 0, 0.04);
+    opacity: 1 !important;
+    font-weight: 600;
+}
+@media (prefers-color-scheme: dark) {
+    .stTabs [aria-selected="true"] {
+        background: rgba(255, 255, 255, 0.12) !important;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+    }
+}
+.stTabs [data-baseweb="tab-highlight"],
+.stTabs [data-baseweb="tab-border"] {
+    display: none !important;
+}
+
+/* Buttons — clean Apple style */
+.stButton > button {
+    border-radius: 12px !important;
+    font-weight: 500 !important;
+    font-size: 0.875rem !important;
+    letter-spacing: -0.01em;
+    padding: 0.5rem 1.25rem !important;
+    transition: all 0.2s cubic-bezier(0.25, 0.1, 0.25, 1) !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+.stButton > button:hover {
+    transform: scale(1.02);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1) !important;
+}
+.stButton > button:active {
+    transform: scale(0.98);
+}
+.stButton > button[kind="primary"] {
+    background: linear-gradient(135deg, #007AFF, #0051D5) !important;
+    color: white !important;
+}
+.stButton > button[kind="primary"]:hover {
+    background: linear-gradient(135deg, #0051D5, #003DA5) !important;
+}
+
+/* Form submit buttons */
+.stFormSubmitButton > button {
+    border-radius: 12px !important;
+    font-weight: 600 !important;
+    background: linear-gradient(135deg, #007AFF, #0051D5) !important;
+    color: white !important;
+    border: none !important;
+    padding: 0.6rem 1.5rem !important;
+    transition: all 0.2s cubic-bezier(0.25, 0.1, 0.25, 1) !important;
+}
+.stFormSubmitButton > button:hover {
+    transform: scale(1.02);
+    box-shadow: 0 4px 16px rgba(0, 122, 255, 0.3) !important;
+}
+
+/* Inputs — minimal & clean */
+.stTextInput > div > div > input,
+.stTextArea > div > div > textarea,
+.stSelectbox > div > div {
+    border-radius: 10px !important;
+    border: 1px solid rgba(0, 0, 0, 0.08) !important;
+    transition: all 0.2s ease !important;
+    font-size: 0.9rem !important;
+}
+.stTextInput > div > div > input:focus,
+.stTextArea > div > div > textarea:focus {
+    border-color: #007AFF !important;
+    box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15) !important;
+}
+
+/* Expanders — glass effect */
+.streamlit-expanderHeader {
+    border-radius: 12px !important;
+    font-weight: 500 !important;
+    font-size: 0.9rem !important;
+    letter-spacing: -0.01em;
+}
+details[data-testid="stExpander"] {
+    border: 1px solid rgba(0, 0, 0, 0.06) !important;
+    border-radius: 14px !important;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.5);
+    backdrop-filter: blur(10px);
+}
+@media (prefers-color-scheme: dark) {
+    details[data-testid="stExpander"] {
+        border-color: rgba(255, 255, 255, 0.08) !important;
+        background: rgba(255, 255, 255, 0.04);
+    }
+}
+
+/* Metrics — refined */
+[data-testid="stMetricValue"] {
+    font-weight: 700 !important;
+    font-size: 1.6rem !important;
+    letter-spacing: -0.03em;
+}
+[data-testid="stMetricLabel"] {
+    font-size: 0.78rem !important;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    opacity: 0.55;
+}
+
+/* Dataframes — clean table style */
+.stDataFrame {
+    border-radius: 12px !important;
+    overflow: hidden;
+}
+
+/* Alerts — softer */
+.stAlert {
+    border-radius: 12px !important;
+    border: none !important;
+    font-size: 0.875rem;
+}
+
+/* Dividers — subtle */
+hr {
+    border: none !important;
+    height: 1px !important;
+    background: rgba(0, 0, 0, 0.06) !important;
+    margin: 1.5rem 0 !important;
+}
+@media (prefers-color-scheme: dark) {
+    hr { background: rgba(255, 255, 255, 0.08) !important; }
+}
+
+/* --- Score display — frosted glass --- */
+.score-box {
+    text-align: center;
+    padding: 2rem 1.5rem;
+    border-radius: 20px;
+    color: white;
+    font-size: 2.5rem;
+    font-weight: 700;
+    letter-spacing: -0.04em;
+    margin-bottom: 1rem;
+    position: relative;
+    overflow: hidden;
+}
+.score-box::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: linear-gradient(180deg, rgba(255,255,255,0.15) 0%, transparent 50%);
+    pointer-events: none;
+}
+.score-good {
+    background: linear-gradient(145deg, #34C759, #30B050);
+    box-shadow: 0 8px 32px rgba(52, 199, 89, 0.3);
+}
+.score-mid {
+    background: linear-gradient(145deg, #FF9F0A, #FF8C00);
+    box-shadow: 0 8px 32px rgba(255, 159, 10, 0.3);
+}
+.score-bad {
+    background: linear-gradient(145deg, #FF3B30, #D92B20);
+    box-shadow: 0 8px 32px rgba(255, 59, 48, 0.3);
+}
+
+/* --- Metric cards — glass morphism --- */
+.metric-card {
+    background: rgba(255, 255, 255, 0.5);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: 16px;
+    padding: 1.25rem;
+    text-align: center;
+    border: 1px solid rgba(0, 0, 0, 0.04);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.metric-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+@media (prefers-color-scheme: dark) {
+    .metric-card {
+        background: rgba(255, 255, 255, 0.06);
+        border-color: rgba(255, 255, 255, 0.06);
+    }
+    .metric-card:hover {
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    }
+}
+.metric-card h3 {
+    margin: 0;
+    font-size: 1.8rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    color: inherit;
+}
+.metric-card p {
+    margin: 4px 0 0 0;
+    opacity: 0.5;
+    font-size: 0.78rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+/* --- Change indicator --- */
+.change-tag {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 8px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+.change-yes {
+    background: rgba(255, 159, 10, 0.12);
+    color: #CC7700;
+}
+.change-no {
+    background: rgba(118, 118, 128, 0.08);
+    color: inherit;
+    opacity: 0.45;
+}
+@media (prefers-color-scheme: dark) {
+    .change-yes { color: #FFB340; }
+}
+
+/* --- Section headers --- */
+.section-header {
+    border-left: 3px solid #007AFF;
+    padding-left: 14px;
+    margin: 2rem 0 1rem 0;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+}
+
+/* --- Comparison columns --- */
+.comparison-old {
+    border-left: 3px solid #FF3B30;
+    padding-left: 10px;
+    border-radius: 2px;
+}
+.comparison-new {
+    border-left: 3px solid #34C759;
+    padding-left: 10px;
+    border-radius: 2px;
+}
+
+/* --- Score breakdown --- */
+.score-detail {
+    display: flex;
+    align-items: center;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+}
+@media (prefers-color-scheme: dark) {
+    .score-detail { border-bottom-color: rgba(255, 255, 255, 0.06); }
+}
+.score-detail-icon { width: 24px; text-align: center; margin-right: 10px; }
+.score-detail-text { flex: 1; font-size: 0.875rem; font-weight: 400; }
+
+/* --- Keyword pills — refined capsule style --- */
+.kw-pill {
+    display: inline-block;
+    background: rgba(0, 122, 255, 0.08);
+    color: #007AFF;
+    padding: 5px 14px;
+    border-radius: 20px;
+    margin: 3px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    border: 1px solid rgba(0, 122, 255, 0.15);
+    transition: all 0.2s ease;
+}
+.kw-pill:hover {
+    background: rgba(0, 122, 255, 0.15);
+    transform: translateY(-1px);
+}
+.kw-pill-buy {
+    background: rgba(52, 199, 89, 0.08);
+    color: #248A3D;
+    border-color: rgba(52, 199, 89, 0.2);
+}
+.kw-pill-buy:hover {
+    background: rgba(52, 199, 89, 0.15);
+}
+.kw-pill-question {
+    background: rgba(255, 159, 10, 0.08);
+    color: #CC7700;
+    border-color: rgba(255, 159, 10, 0.15);
+}
+.kw-pill-question:hover {
+    background: rgba(255, 159, 10, 0.15);
+}
+@media (prefers-color-scheme: dark) {
+    .kw-pill { color: #64B5F6; background: rgba(0, 122, 255, 0.12); }
+    .kw-pill-buy { color: #69DB7C; background: rgba(52, 199, 89, 0.12); }
+    .kw-pill-question { color: #FFB340; background: rgba(255, 159, 10, 0.12); }
+}
+
+/* --- Login page --- */
+.login-container {
+    max-width: 380px;
+    margin: 10vh auto;
+    text-align: center;
+}
+.login-logo {
+    font-size: 2.5rem;
+    font-weight: 700;
+    letter-spacing: -0.04em;
+    margin-bottom: 0.25rem;
+    background: linear-gradient(135deg, #007AFF, #5856D6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+.login-subtitle {
+    font-size: 1rem;
+    opacity: 0.5;
+    font-weight: 400;
+    margin-bottom: 2rem;
+}
+
+/* --- Status dots --- */
+.status-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 6px;
+    vertical-align: middle;
+}
+.status-dot-green { background: #34C759; box-shadow: 0 0 6px rgba(52, 199, 89, 0.4); }
+.status-dot-red { background: #FF3B30; box-shadow: 0 0 6px rgba(255, 59, 48, 0.3); }
+.status-dot-gray { background: #8E8E93; }
+
+/* --- Footer --- */
+.app-footer {
+    text-align: center;
+    opacity: 0.35;
+    font-size: 0.75rem;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    padding: 2rem 0 1rem 0;
+}
+
+/* --- Scrollbar (WebKit) --- */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.25); }
+@media (prefers-color-scheme: dark) {
+    ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.25); }
+}
+
+/* --- Scrollbar (Firefox) --- */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
+}
+@media (prefers-color-scheme: dark) {
+    * {
+        scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+    }
+}
+
+/* ===================================================================
+   Reusable UI Component Classes
+   (replace inline styles in app.py)
+   =================================================================== */
+
+/* --- Info/Alert Boxes --- */
+.info-box {
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+.info-box-blue {
+    background: rgba(0, 122, 255, 0.06);
+    border: 1px solid rgba(0, 122, 255, 0.15);
+    color: inherit;
+}
+.info-box-orange {
+    background: rgba(255, 159, 10, 0.08);
+    border: 1px solid rgba(255, 159, 10, 0.2);
+    color: inherit;
+}
+.info-box-green {
+    background: rgba(52, 199, 89, 0.08);
+    border: 1px solid rgba(52, 199, 89, 0.2);
+    color: inherit;
+}
+.info-box-header {
+    background: rgba(0, 122, 255, 0.08);
+    border: 1px solid rgba(0, 122, 255, 0.2);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 1rem;
+    color: inherit;
+}
+
+/* --- Header label (sidebar etc.) --- */
+.config-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    opacity: 0.4;
+    margin-bottom: 0.5rem;
+}
+
+/* --- Status label text --- */
+.status-label {
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+/* --- App title --- */
+.app-title {
+    font-weight: 700;
+    letter-spacing: -0.04em;
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+}
+
+/* --- Badge for changed fields (smart comparison) --- */
+.changed-badge {
+    color: #34C759;
+    font-size: 0.8rem;
+}
+@media (prefers-color-scheme: dark) {
+    .changed-badge {
+        color: #69DB7C;
+    }
+}
+
+/* --- Character count (inline) --- */
+.char-count {
+    font-size: 0.85rem;
+}
+.char-count-ok {
+    color: #248A3D;
+}
+.char-count-over {
+    color: #FF3B30;
+}
+@media (prefers-color-scheme: dark) {
+    .char-count-ok {
+        color: #69DB7C;
+    }
+    .char-count-over {
+        color: #FF6961;
+    }
+}
+
+/* --- Queue header text --- */
+.queue-title {
+    font-size: 1.3rem;
+    font-weight: 700;
+}
+.queue-counter {
+    float: right;
+    font-size: 1.1rem;
+    opacity: 0.8;
+}
+
+/* --- Live success box --- */
+.success-box {
+    background: rgba(52, 199, 89, 0.08);
+    border: 1px solid rgba(52, 199, 89, 0.2);
+    border-radius: 12px;
+    padding: 16px;
+    margin: 1rem 0;
+    text-align: center;
+    color: inherit;
+}
+
+/* --- Publish info box --- */
+.publish-box {
+    background: rgba(0, 122, 255, 0.08);
+    border: 1px solid rgba(0, 122, 255, 0.2);
+    border-radius: 12px;
+    padding: 16px;
+    margin: 0.5rem 0 1rem 0;
+    color: inherit;
+}
+</style>

@@ -111,6 +111,35 @@ class ShopifyClient:
                 _kwargs=_kwargs,
             )
 
+        # Retry on transient server errors (5xx) with exponential backoff
+        if response.status_code >= 500 and _retry < 2:
+            delay = 2.0 * (2 ** _retry)  # 2s, 4s
+            logging.warning(
+                "Shopify %s Fehler — Retry %d in %.0fs",
+                response.status_code, _retry + 1, delay,
+            )
+            time.sleep(delay)
+            if _kwargs is None:
+                _kwargs = {}
+            fn = {
+                "GET": requests.get,
+                "PUT": requests.put,
+                "POST": requests.post,
+            }.get(_method, requests.get)
+            try:
+                new_response = fn(_url, **_kwargs)
+            except requests.exceptions.RequestException as exc:
+                raise ShopifyConnectionError(
+                    f"Verbindungsfehler beim 5xx-Retry: {exc}"
+                ) from exc
+            return self._handle_response(
+                new_response,
+                _retry=_retry + 1,
+                _method=_method,
+                _url=_url,
+                _kwargs=_kwargs,
+            )
+
         if response.status_code >= 400:
             raise ShopifyConnectionError(
                 f"Shopify API Fehler {response.status_code}: {response.text[:300]}"

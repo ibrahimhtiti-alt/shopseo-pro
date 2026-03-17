@@ -150,7 +150,7 @@ class SEOEngine:
             self.client = None  # OpenRouter nutzt requests direkt
             self.model = model_id or "anthropic/claude-sonnet-4.6"
         else:
-            self.client = anthropic.Anthropic(api_key=api_key)
+            self.client = anthropic.Anthropic(api_key=api_key, timeout=180.0)
             self.model = model_id or "claude-sonnet-4-20250514"
         # Gemini und andere Modelle brauchen mehr Tokens für vollständigen Body-HTML
         self.max_tokens = 8192

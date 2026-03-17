@@ -43,6 +43,12 @@ class BackupStore:
                 )
                 """
             )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_backups_resource_id ON backups(resource_id)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_backups_timestamp ON backups(timestamp)"
+            )
             conn.commit()
 
     def _row_to_entry(self, row: tuple) -> BackupEntry:
@@ -170,3 +176,79 @@ class BackupStore:
             if row is None or not row[0]:
                 return None
             return json.loads(row[0])
+
+    # ------------------------------------------------------------------
+    # Dashboard / Statistics helpers
+    # ------------------------------------------------------------------
+
+    def get_stats(self) -> dict:
+        """Return statistics for the dashboard.
+
+        Returns dict with keys:
+            total_backups, total_optimized_7d, total_optimized_30d,
+            recent_backups (list of last 10 BackupEntry).
+        """
+        with sqlite3.connect(str(self.db_path)) as conn:
+            total = conn.execute("SELECT COUNT(*) FROM backups").fetchone()[0]
+
+            cutoff_7 = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+            opt_7 = conn.execute(
+                "SELECT COUNT(DISTINCT resource_id) FROM backups "
+                "WHERE rolled_back = 0 AND after_json != '' AND timestamp >= ?",
+                (cutoff_7,),
+            ).fetchone()[0]
+
+            cutoff_30 = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+            opt_30 = conn.execute(
+                "SELECT COUNT(DISTINCT resource_id) FROM backups "
+                "WHERE rolled_back = 0 AND after_json != '' AND timestamp >= ?",
+                (cutoff_30,),
+            ).fetchone()[0]
+
+            recent_rows = conn.execute(
+                "SELECT * FROM backups ORDER BY id DESC LIMIT 10"
+            ).fetchall()
+
+        return {
+            "total_backups": total,
+            "total_optimized_7d": opt_7,
+            "total_optimized_30d": opt_30,
+            "recent_backups": [self._row_to_entry(r) for r in recent_rows],
+        }
+
+    def list_backup_groups(self, limit: int = 20) -> list[dict]:
+        """Group backups by minute-level timestamp for batch rollback.
+
+        Returns list of dicts: {minute, count, backup_ids, titles, resource_type}.
+        """
+        with sqlite3.connect(str(self.db_path)) as conn:
+            rows = conn.execute(
+                """
+                SELECT
+                    SUBSTR(timestamp, 1, 16) AS minute,
+                    GROUP_CONCAT(id) AS ids,
+                    GROUP_CONCAT(resource_id) AS resource_ids,
+                    COUNT(*) AS cnt,
+                    resource_type,
+                    MIN(rolled_back) AS any_active
+                FROM backups
+                WHERE after_json != ''
+                GROUP BY minute, resource_type
+                HAVING cnt > 1
+                ORDER BY minute DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+
+        groups = []
+        for row in rows:
+            groups.append({
+                "minute": row[0],
+                "backup_ids": [int(x) for x in row[1].split(",")],
+                "resource_ids": [int(x) for x in row[2].split(",")],
+                "count": row[3],
+                "resource_type": row[4],
+                "has_active": row[5] == 0,  # at least one not rolled back
+            })
+        return groups

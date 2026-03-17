@@ -17,7 +17,12 @@ class RankingTracker:
         self.site_url = site_url.rstrip("/")  # e.g. "https://www.myvapez.de"
         self.credentials_path = credentials_path
         self.service = None  # Google API service object
-        self._history_path = Path(__file__).resolve().parent / "ranking_history.json"
+        # Use data/ directory if available (Docker volume), otherwise project root
+        _data_dir = Path(__file__).resolve().parent / "data"
+        if _data_dir.is_dir():
+            self._history_path = _data_dir / "ranking_history.json"
+        else:
+            self._history_path = Path(__file__).resolve().parent / "ranking_history.json"
         self._connected = False
 
     # ------------------------------------------------------------------
@@ -237,7 +242,11 @@ class RankingTracker:
         except (json.JSONDecodeError, IOError):
             return []
 
+    _MAX_HISTORY_ENTRIES = 10000
+
     def _save_history_file(self, data: list[dict]) -> None:
-        """Lokale Historie-Datei speichern."""
+        """Lokale Historie-Datei speichern (max 10.000 Einträge)."""
+        if len(data) > self._MAX_HISTORY_ENTRIES:
+            data = data[-self._MAX_HISTORY_ENTRIES:]
         with open(self._history_path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)

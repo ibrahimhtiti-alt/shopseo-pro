@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import logging
+import time
 from typing import Optional
 
 import pandas as pd
@@ -48,425 +49,17 @@ st.set_page_config(
 # Custom CSS for improved UI
 # ---------------------------------------------------------------------------
 
-st.markdown("""
-<style>
-/* ===================================================================
-   ShopSEO Pro — Apple-inspired Design System
-   Clean, minimal, frosted glass, SF Pro typography
-   =================================================================== */
+def _load_css() -> None:
+    """Load external CSS file for styling."""
+    from pathlib import Path
+    css_path = Path(__file__).resolve().parent / "styles.css"
+    if css_path.exists():
+        css_text = css_path.read_text(encoding="utf-8")
+        st.markdown(f"<style>{css_text}</style>", unsafe_allow_html=True)
+    else:
+        logging.warning("styles.css not found — using default Streamlit styling.")
 
-/* --- Typography & Global --- */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-
-.stApp {
-    max-width: 1400px;
-    margin: 0 auto;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display',
-                 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-}
-
-/* Streamlit overrides for cleaner look */
-.stApp [data-testid="stHeader"] {
-    background: transparent;
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-}
-
-/* Smoother sidebar */
-section[data-testid="stSidebar"] {
-    background: rgba(245, 245, 247, 0.72) !important;
-    backdrop-filter: blur(40px) saturate(180%);
-    -webkit-backdrop-filter: blur(40px) saturate(180%);
-    border-right: 1px solid rgba(0, 0, 0, 0.06);
-}
-@media (prefers-color-scheme: dark) {
-    section[data-testid="stSidebar"] {
-        background: rgba(28, 28, 30, 0.72) !important;
-        border-right: 1px solid rgba(255, 255, 255, 0.08);
-    }
-}
-
-/* Tabs — pill style */
-.stTabs [data-baseweb="tab-list"] {
-    gap: 4px;
-    background: rgba(118, 118, 128, 0.08);
-    border-radius: 12px;
-    padding: 3px;
-}
-.stTabs [data-baseweb="tab"] {
-    border-radius: 10px;
-    padding: 8px 16px;
-    font-weight: 500;
-    font-size: 0.85rem;
-    letter-spacing: -0.01em;
-    color: inherit;
-    opacity: 0.6;
-    transition: all 0.2s ease;
-}
-.stTabs [aria-selected="true"] {
-    background: rgba(255, 255, 255, 0.9) !important;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08), 0 0.5px 1px rgba(0, 0, 0, 0.04);
-    opacity: 1 !important;
-    font-weight: 600;
-}
-@media (prefers-color-scheme: dark) {
-    .stTabs [aria-selected="true"] {
-        background: rgba(255, 255, 255, 0.12) !important;
-        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
-    }
-}
-.stTabs [data-baseweb="tab-highlight"],
-.stTabs [data-baseweb="tab-border"] {
-    display: none !important;
-}
-
-/* Buttons — clean Apple style */
-.stButton > button {
-    border-radius: 12px !important;
-    font-weight: 500 !important;
-    font-size: 0.875rem !important;
-    letter-spacing: -0.01em;
-    padding: 0.5rem 1.25rem !important;
-    transition: all 0.2s cubic-bezier(0.25, 0.1, 0.25, 1) !important;
-    border: none !important;
-    box-shadow: none !important;
-}
-.stButton > button:hover {
-    transform: scale(1.02);
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1) !important;
-}
-.stButton > button:active {
-    transform: scale(0.98);
-}
-.stButton > button[kind="primary"] {
-    background: linear-gradient(135deg, #007AFF, #0051D5) !important;
-    color: white !important;
-}
-.stButton > button[kind="primary"]:hover {
-    background: linear-gradient(135deg, #0051D5, #003DA5) !important;
-}
-
-/* Form submit buttons */
-.stFormSubmitButton > button {
-    border-radius: 12px !important;
-    font-weight: 600 !important;
-    background: linear-gradient(135deg, #007AFF, #0051D5) !important;
-    color: white !important;
-    border: none !important;
-    padding: 0.6rem 1.5rem !important;
-    transition: all 0.2s cubic-bezier(0.25, 0.1, 0.25, 1) !important;
-}
-.stFormSubmitButton > button:hover {
-    transform: scale(1.02);
-    box-shadow: 0 4px 16px rgba(0, 122, 255, 0.3) !important;
-}
-
-/* Inputs — minimal & clean */
-.stTextInput > div > div > input,
-.stTextArea > div > div > textarea,
-.stSelectbox > div > div {
-    border-radius: 10px !important;
-    border: 1px solid rgba(0, 0, 0, 0.08) !important;
-    transition: all 0.2s ease !important;
-    font-size: 0.9rem !important;
-}
-.stTextInput > div > div > input:focus,
-.stTextArea > div > div > textarea:focus {
-    border-color: #007AFF !important;
-    box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15) !important;
-}
-
-/* Expanders — glass effect */
-.streamlit-expanderHeader {
-    border-radius: 12px !important;
-    font-weight: 500 !important;
-    font-size: 0.9rem !important;
-    letter-spacing: -0.01em;
-}
-details[data-testid="stExpander"] {
-    border: 1px solid rgba(0, 0, 0, 0.06) !important;
-    border-radius: 14px !important;
-    overflow: hidden;
-    background: rgba(255, 255, 255, 0.5);
-    backdrop-filter: blur(10px);
-}
-@media (prefers-color-scheme: dark) {
-    details[data-testid="stExpander"] {
-        border-color: rgba(255, 255, 255, 0.08) !important;
-        background: rgba(255, 255, 255, 0.04);
-    }
-}
-
-/* Metrics — refined */
-[data-testid="stMetricValue"] {
-    font-weight: 700 !important;
-    font-size: 1.6rem !important;
-    letter-spacing: -0.03em;
-}
-[data-testid="stMetricLabel"] {
-    font-size: 0.78rem !important;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    opacity: 0.55;
-}
-
-/* Dataframes — clean table style */
-.stDataFrame {
-    border-radius: 12px !important;
-    overflow: hidden;
-}
-
-/* Alerts — softer */
-.stAlert {
-    border-radius: 12px !important;
-    border: none !important;
-    font-size: 0.875rem;
-}
-
-/* Dividers — subtle */
-hr {
-    border: none !important;
-    height: 1px !important;
-    background: rgba(0, 0, 0, 0.06) !important;
-    margin: 1.5rem 0 !important;
-}
-@media (prefers-color-scheme: dark) {
-    hr { background: rgba(255, 255, 255, 0.08) !important; }
-}
-
-/* --- Score display — frosted glass --- */
-.score-box {
-    text-align: center;
-    padding: 2rem 1.5rem;
-    border-radius: 20px;
-    color: white;
-    font-size: 2.5rem;
-    font-weight: 700;
-    letter-spacing: -0.04em;
-    margin-bottom: 1rem;
-    position: relative;
-    overflow: hidden;
-}
-.score-box::after {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: linear-gradient(180deg, rgba(255,255,255,0.15) 0%, transparent 50%);
-    pointer-events: none;
-}
-.score-good {
-    background: linear-gradient(145deg, #34C759, #30B050);
-    box-shadow: 0 8px 32px rgba(52, 199, 89, 0.3);
-}
-.score-mid {
-    background: linear-gradient(145deg, #FF9F0A, #FF8C00);
-    box-shadow: 0 8px 32px rgba(255, 159, 10, 0.3);
-}
-.score-bad {
-    background: linear-gradient(145deg, #FF3B30, #D92B20);
-    box-shadow: 0 8px 32px rgba(255, 59, 48, 0.3);
-}
-
-/* --- Metric cards — glass morphism --- */
-.metric-card {
-    background: rgba(255, 255, 255, 0.5);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-radius: 16px;
-    padding: 1.25rem;
-    text-align: center;
-    border: 1px solid rgba(0, 0, 0, 0.04);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-.metric-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
-}
-@media (prefers-color-scheme: dark) {
-    .metric-card {
-        background: rgba(255, 255, 255, 0.06);
-        border-color: rgba(255, 255, 255, 0.06);
-    }
-    .metric-card:hover {
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-    }
-}
-.metric-card h3 {
-    margin: 0;
-    font-size: 1.8rem;
-    font-weight: 700;
-    letter-spacing: -0.03em;
-    color: inherit;
-}
-.metric-card p {
-    margin: 4px 0 0 0;
-    opacity: 0.5;
-    font-size: 0.78rem;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-}
-
-/* --- Change indicator --- */
-.change-tag {
-    display: inline-block;
-    padding: 3px 10px;
-    border-radius: 8px;
-    font-size: 0.72rem;
-    font-weight: 600;
-    letter-spacing: -0.01em;
-}
-.change-yes {
-    background: rgba(255, 159, 10, 0.12);
-    color: #CC7700;
-}
-.change-no {
-    background: rgba(118, 118, 128, 0.08);
-    color: inherit;
-    opacity: 0.45;
-}
-@media (prefers-color-scheme: dark) {
-    .change-yes { color: #FFB340; }
-}
-
-/* --- Section headers --- */
-.section-header {
-    border-left: 3px solid #007AFF;
-    padding-left: 14px;
-    margin: 2rem 0 1rem 0;
-    font-weight: 600;
-    letter-spacing: -0.02em;
-}
-
-/* --- Comparison columns --- */
-.comparison-old {
-    border-left: 3px solid #FF3B30;
-    padding-left: 10px;
-    border-radius: 2px;
-}
-.comparison-new {
-    border-left: 3px solid #34C759;
-    padding-left: 10px;
-    border-radius: 2px;
-}
-
-/* --- Score breakdown --- */
-.score-detail {
-    display: flex;
-    align-items: center;
-    padding: 6px 0;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.04);
-}
-@media (prefers-color-scheme: dark) {
-    .score-detail { border-bottom-color: rgba(255, 255, 255, 0.06); }
-}
-.score-detail-icon { width: 24px; text-align: center; margin-right: 10px; }
-.score-detail-text { flex: 1; font-size: 0.875rem; font-weight: 400; }
-
-/* --- Keyword pills — refined capsule style --- */
-.kw-pill {
-    display: inline-block;
-    background: rgba(0, 122, 255, 0.08);
-    color: #007AFF;
-    padding: 5px 14px;
-    border-radius: 20px;
-    margin: 3px;
-    font-size: 0.8rem;
-    font-weight: 500;
-    letter-spacing: -0.01em;
-    border: 1px solid rgba(0, 122, 255, 0.15);
-    transition: all 0.2s ease;
-}
-.kw-pill:hover {
-    background: rgba(0, 122, 255, 0.15);
-    transform: translateY(-1px);
-}
-.kw-pill-buy {
-    background: rgba(52, 199, 89, 0.08);
-    color: #248A3D;
-    border-color: rgba(52, 199, 89, 0.2);
-}
-.kw-pill-buy:hover {
-    background: rgba(52, 199, 89, 0.15);
-}
-.kw-pill-question {
-    background: rgba(255, 159, 10, 0.08);
-    color: #CC7700;
-    border-color: rgba(255, 159, 10, 0.15);
-}
-.kw-pill-question:hover {
-    background: rgba(255, 159, 10, 0.15);
-}
-@media (prefers-color-scheme: dark) {
-    .kw-pill { color: #64B5F6; background: rgba(0, 122, 255, 0.12); }
-    .kw-pill-buy { color: #69DB7C; background: rgba(52, 199, 89, 0.12); }
-    .kw-pill-question { color: #FFB340; background: rgba(255, 159, 10, 0.12); }
-}
-
-/* --- Login page --- */
-.login-container {
-    max-width: 380px;
-    margin: 10vh auto;
-    text-align: center;
-}
-.login-logo {
-    font-size: 2.5rem;
-    font-weight: 700;
-    letter-spacing: -0.04em;
-    margin-bottom: 0.25rem;
-    background: linear-gradient(135deg, #007AFF, #5856D6);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-}
-.login-subtitle {
-    font-size: 1rem;
-    opacity: 0.5;
-    font-weight: 400;
-    margin-bottom: 2rem;
-}
-
-/* --- Status dots --- */
-.status-dot {
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    margin-right: 6px;
-    vertical-align: middle;
-}
-.status-dot-green { background: #34C759; box-shadow: 0 0 6px rgba(52, 199, 89, 0.4); }
-.status-dot-red { background: #FF3B30; box-shadow: 0 0 6px rgba(255, 59, 48, 0.3); }
-.status-dot-gray { background: #8E8E93; }
-
-/* --- Footer --- */
-.app-footer {
-    text-align: center;
-    opacity: 0.35;
-    font-size: 0.75rem;
-    font-weight: 400;
-    letter-spacing: -0.01em;
-    padding: 2rem 0 1rem 0;
-}
-
-/* --- Scrollbar (WebKit) --- */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb {
-    background: rgba(0, 0, 0, 0.15);
-    border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.25); }
-@media (prefers-color-scheme: dark) {
-    ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); }
-    ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.25); }
-}
-</style>
-""", unsafe_allow_html=True)
+_load_css()
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -551,8 +144,13 @@ def _get_ranking_tracker() -> RankingTracker | None:
 # ---------------------------------------------------------------------------
 
 
+_MAX_LOGIN_ATTEMPTS = 5
+_LOGIN_LOCKOUT_SECONDS = 60
+_SESSION_MAX_AGE_SECONDS = 86400  # 24 hours
+
+
 def _show_login() -> None:
-    """Render a simple login form."""
+    """Render a simple login form with rate limiting."""
     col_empty1, col_login, col_empty2 = st.columns([1, 2, 1])
     with col_login:
         st.markdown(
@@ -575,6 +173,18 @@ def _show_login() -> None:
             )
             return
 
+        # Rate limiting: check for lockout
+        attempts = st.session_state.get("_login_attempts", 0)
+        lockout_until = st.session_state.get("_login_lockout_until", 0)
+        now = time.time()
+
+        if now < lockout_until:
+            remaining = int(lockout_until - now)
+            st.error(
+                f"⏳ Zu viele Fehlversuche. Bitte warte {remaining} Sekunden."
+            )
+            return
+
         with st.form("login_form"):
             username = st.text_input("Benutzername")
             password = st.text_input("Passwort", type="password")
@@ -584,9 +194,24 @@ def _show_login() -> None:
             pass_hash = hashlib.sha256(password.encode()).hexdigest()
             if username == _ADMIN_USER and pass_hash == _ADMIN_PASS_HASH:
                 st.session_state["authenticated"] = True
+                st.session_state["_auth_time"] = time.time()
+                st.session_state["_login_attempts"] = 0
                 st.rerun()
             else:
-                st.error("Benutzername oder Passwort falsch.")
+                attempts += 1
+                st.session_state["_login_attempts"] = attempts
+                if attempts >= _MAX_LOGIN_ATTEMPTS:
+                    st.session_state["_login_lockout_until"] = now + _LOGIN_LOCKOUT_SECONDS
+                    st.error(
+                        f"⛔ {_MAX_LOGIN_ATTEMPTS} Fehlversuche — "
+                        f"Login für {_LOGIN_LOCKOUT_SECONDS}s gesperrt."
+                    )
+                else:
+                    remaining = _MAX_LOGIN_ATTEMPTS - attempts
+                    st.error(
+                        f"Benutzername oder Passwort falsch. "
+                        f"({remaining} Versuche übrig)"
+                    )
 
 
 # ---------------------------------------------------------------------------
@@ -597,8 +222,7 @@ def _show_login() -> None:
 def _render_sidebar() -> None:
     """Render the configuration sidebar."""
     st.sidebar.markdown(
-        '<p style="font-size:0.72rem;font-weight:600;text-transform:uppercase;'
-        'letter-spacing:0.08em;opacity:0.4;margin-bottom:0.5rem;">Konfiguration</p>',
+        '<p class="config-label">Konfiguration</p>',
         unsafe_allow_html=True,
     )
 
@@ -719,26 +343,26 @@ def _render_sidebar() -> None:
         if st.session_state.get("connection_ok"):
             st.markdown(
                 '<span class="status-dot status-dot-green"></span>'
-                '<span style="font-size:0.8rem;font-weight:500;">Shopify</span>',
+                '<span class="status-label">Shopify</span>',
                 unsafe_allow_html=True,
             )
         else:
             st.markdown(
                 '<span class="status-dot status-dot-red"></span>'
-                '<span style="font-size:0.8rem;font-weight:500;">Shopify</span>',
+                '<span class="status-label">Shopify</span>',
                 unsafe_allow_html=True,
             )
     with status_col2:
         if st.session_state.get("gsc_connected"):
             st.markdown(
                 '<span class="status-dot status-dot-green"></span>'
-                '<span style="font-size:0.8rem;font-weight:500;">GSC</span>',
+                '<span class="status-label">GSC</span>',
                 unsafe_allow_html=True,
             )
         else:
             st.markdown(
                 '<span class="status-dot status-dot-gray"></span>'
-                '<span style="font-size:0.8rem;font-weight:500;">GSC</span>',
+                '<span class="status-label">GSC</span>',
                 unsafe_allow_html=True,
             )
 
@@ -971,7 +595,11 @@ def _change_indicator(old: str, new: str) -> str:
 
 
 def _render_content_preview(body_html: str) -> None:
-    """Render an HTML preview of the body content using a real HTML iframe."""
+    """Render an HTML preview of the body content using a real HTML iframe.
+
+    The iframe always uses a light background with dark text so that
+    HTML content is readable regardless of the Streamlit dark/light theme.
+    """
     if not body_html:
         st.caption("(kein Inhalt)")
         return
@@ -979,8 +607,19 @@ def _render_content_preview(body_html: str) -> None:
     import streamlit.components.v1 as components
     wrapped = (
         '<div style="font-family:Inter,-apple-system,BlinkMacSystemFont,sans-serif;'
-        'font-size:14px;line-height:1.7;color:#1d1d1f;padding:12px;'
+        'font-size:14px;line-height:1.7;color:#1d1d1f;padding:16px;'
+        'background:#ffffff;border-radius:8px;'
         '-webkit-font-smoothing:antialiased;">'
+        '<style>'
+        'body{margin:0;background:#ffffff;}'
+        'h1,h2,h3,h4,h5,h6{color:#1d1d1f;}'
+        'p,li,td,th,span,div{color:#1d1d1f;}'
+        'a{color:#007AFF;}'
+        'table{border-collapse:collapse;width:100%;}'
+        'th,td{border:1px solid #e0e0e0;padding:8px;text-align:left;}'
+        'th{background:#f5f5f7;}'
+        'img{max-width:100%;height:auto;border-radius:4px;}'
+        '</style>'
         f'{body_html}</div>'
     )
     components.html(wrapped, height=400, scrolling=True)
@@ -1201,6 +840,120 @@ def _render_compliance_warnings(warnings: list[ComplianceWarning]) -> None:
         st.error(f"**{w.category}:** {w.message}{detail}")
 
 
+def _render_tab_dashboard() -> None:
+    """Render the dashboard / overview tab with key metrics."""
+    cfg: AppConfig | None = st.session_state.get("config")
+    if not cfg:
+        st.info("Bitte zuerst die Konfiguration in der Seitenleiste ausfuellen.")
+        return
+
+    st.markdown("### Dashboard")
+
+    # --- Load stats ---
+    try:
+        backup_store = BackupStore()
+        stats = backup_store.get_stats()
+    except Exception:
+        stats = {
+            "total_backups": 0,
+            "total_optimized_7d": 0,
+            "total_optimized_30d": 0,
+            "recent_backups": [],
+        }
+
+    # --- Product / Collection / Page counts ---
+    count_col1, count_col2, count_col3 = st.columns(3)
+    resource_counts: dict[str, int] = {}
+    for rt in ResourceType:
+        cache_key = f"_items_{rt.value}"
+        items = st.session_state.get(cache_key)
+        if items is not None:
+            resource_counts[rt.value] = len(items)
+
+    with count_col1:
+        cnt = resource_counts.get("Produkte", "—")
+        st.metric("Produkte", cnt)
+    with count_col2:
+        cnt = resource_counts.get("Kategorien", "—")
+        st.metric("Kategorien", cnt)
+    with count_col3:
+        cnt = resource_counts.get("Seiten", "—")
+        st.metric("Seiten", cnt)
+
+    if not resource_counts:
+        st.caption(
+            "Produktzahlen werden angezeigt, nachdem du einen Tab mit Shopify-Daten besucht hast."
+        )
+
+    st.markdown("---")
+
+    # --- Optimization stats ---
+    st.markdown("### Optimierungs-Statistik")
+    opt_col1, opt_col2, opt_col3, opt_col4 = st.columns(4)
+    with opt_col1:
+        st.metric("Optimiert (7 Tage)", stats["total_optimized_7d"])
+    with opt_col2:
+        st.metric("Optimiert (30 Tage)", stats["total_optimized_30d"])
+    with opt_col3:
+        st.metric("Backups gesamt", stats["total_backups"])
+    with opt_col4:
+        # Average score from last batch if available
+        batch_results = st.session_state.get("_batch_results", [])
+        if batch_results:
+            scores = [r.get("score", 0) for r in batch_results if r.get("score")]
+            avg = round(sum(scores) / len(scores)) if scores else "—"
+        else:
+            avg = "—"
+        st.metric("Ø SEO-Score", avg)
+
+    st.markdown("---")
+
+    # --- Recent activity ---
+    st.markdown("### Letzte Aenderungen")
+    recent = stats["recent_backups"]
+    if not recent:
+        st.caption("Noch keine Optimierungen durchgeführt.")
+    else:
+        for entry in recent:
+            ts_display = entry.timestamp[:16].replace("T", " ") if entry.timestamp else "?"
+            status_icon = "🔄" if entry.rolled_back else "✅"
+            resource_label = entry.resource_type or "?"
+            st.markdown(
+                f"{status_icon} **{ts_display}** — {resource_label} #{entry.resource_id} "
+                f"{'(zurückgesetzt)' if entry.rolled_back else ''}"
+            )
+
+    st.markdown("---")
+
+    # --- Quick actions ---
+    st.markdown("### Schnellzugriff")
+    qa_col1, qa_col2, qa_col3 = st.columns(3)
+    with qa_col1:
+        st.markdown(
+            '<div class="info-box info-box-blue" style="text-align:center;">'
+            '<strong>SEO-Optimierung</strong><br>'
+            '<span style="font-size:0.85rem;">Einzelne Produkte analysieren & optimieren</span>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+    with qa_col2:
+        st.markdown(
+            '<div class="info-box info-box-green" style="text-align:center;">'
+            '<strong>Batch-Analyse</strong><br>'
+            '<span style="font-size:0.85rem;">Mehrere Produkte auf einmal optimieren</span>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+    with qa_col3:
+        st.markdown(
+            '<div class="info-box info-box-orange" style="text-align:center;">'
+            '<strong>Google Rankings</strong><br>'
+            '<span style="font-size:0.85rem;">Search Console Daten & Trends</span>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+
+
 def _render_tab_seo() -> None:
     """Render the SEO optimization tab."""
     cfg: AppConfig | None = st.session_state.get("config")
@@ -1269,6 +1022,27 @@ def _render_tab_seo() -> None:
     )
     selected_item = filtered_items[selected_idx]
 
+    # --- Optimization history for selected item ---
+    try:
+        _bs = BackupStore()
+        item_backups = _bs.list_backups(resource_id=selected_item["id"], limit=5)
+        if item_backups:
+            with st.expander(f"Optimierungs-Verlauf ({len(item_backups)} letzte)", expanded=False):
+                for bk in item_backups:
+                    ts = bk.timestamp[:16].replace("T", " ") if bk.timestamp else "?"
+                    status = "🔄 Zurückgesetzt" if bk.rolled_back else "✅ Live"
+                    changes_summary = ""
+                    if bk.before_state and bk.after_state:
+                        changed_fields = []
+                        for field in ["seo_title", "meta_description", "h1", "body_html"]:
+                            if bk.before_state.get(field, "") != bk.after_state.get(field, ""):
+                                changed_fields.append(field.replace("_", " ").title())
+                        if changed_fields:
+                            changes_summary = f" — {', '.join(changed_fields)}"
+                    st.markdown(f"**{ts}** {status}{changes_summary}")
+    except Exception:
+        pass  # Don't break UI if backup store fails
+
     # Action buttons
     btn_col1, btn_col2 = st.columns([1, 1])
     with btn_col1:
@@ -1315,13 +1089,19 @@ def _render_tab_seo() -> None:
                     category = full.product_type or ""
                     tags = full.tags or ""
 
-                with st.spinner("Recherchiere Keywords bei Google..."):
-                    kw_research = research_keywords(
-                        product_name=product_name,
-                        brand=brand,
-                        category=category,
-                        tags=tags,
-                    )
+                kw_progress = st.progress(0, text="Recherchiere Keywords bei Google…")
+
+                def _kw_progress_cb(pct: float, msg: str) -> None:
+                    kw_progress.progress(min(pct, 1.0), text=msg)
+
+                kw_research = research_keywords(
+                    product_name=product_name,
+                    brand=brand,
+                    category=category,
+                    tags=tags,
+                    progress_callback=_kw_progress_cb,
+                )
+                kw_progress.empty()
                 analysis.suggested_keywords = kw_research
                 st.session_state["seo_analysis"] = analysis
 
@@ -1470,8 +1250,7 @@ def _render_tab_seo() -> None:
         st.markdown("---")
         st.markdown("## SEO-Dashboard — Vorschau der Änderungen")
         st.markdown(
-            '<div style="background:rgba(255,159,10,0.08);border:1px solid rgba(255,159,10,0.2);'
-            'border-radius:12px;padding:12px 16px;margin-bottom:1rem;">'
+            '<div class="info-box info-box-orange">'
             '<span style="font-size:1.1rem;">&#9888;&#65039;</span> '
             '<strong>Noch nicht live</strong> — Das sind nur KI-Vorschläge. '
             'Dein Shop wurde noch nicht verändert. Prüfe die Vorschläge und klicke unten auf '
@@ -1502,8 +1281,7 @@ def _render_tab_seo() -> None:
         st.markdown("---")
         st.markdown("## Jetzt live schalten")
         st.markdown(
-            '<div style="background:rgba(0,122,255,0.06);border:1px solid rgba(0,122,255,0.15);'
-            'border-radius:12px;padding:12px 16px;margin-bottom:1rem;font-size:0.9rem;">'
+            '<div class="info-box info-box-blue">'
             'Prüfe die Vorschläge oben und passe sie bei Bedarf an. '
             'Erst wenn du auf <strong>In Shopify übernehmen</strong> klickst, '
             'werden die Änderungen in deinem Shop sichtbar. '
@@ -1616,8 +1394,7 @@ def _render_tab_seo() -> None:
                     backup_store.update_after_state(backup_id, after_state)
 
                     st.markdown(
-                        '<div style="background:rgba(52,199,89,0.08);border:1px solid rgba(52,199,89,0.2);'
-                        'border-radius:12px;padding:16px;margin:1rem 0;text-align:center;">'
+                        '<div class="success-box">'
                         '<span style="font-size:1.5rem;">&#9989;</span><br>'
                         '<strong style="font-size:1.1rem;">Live geschaltet!</strong><br>'
                         '<span style="opacity:0.7;font-size:0.85rem;">'
@@ -1670,7 +1447,7 @@ def _render_tab_batch() -> None:
     _render_bulk_results(cfg)
 
     # --- Settings row ---
-    batch_col1, batch_col2, batch_col3 = st.columns([1, 2, 1])
+    batch_col1, batch_col2, batch_col3, batch_col4 = st.columns([1, 2, 1, 1])
 
     with batch_col1:
         resource_type_label = st.selectbox(
@@ -1700,6 +1477,21 @@ def _render_tab_batch() -> None:
             help="Filtere nach Name oder Handle. Mehrere Begriffe mit Leerzeichen trennen (alle müssen enthalten sein).",
         )
 
+    with batch_col3:
+        status_filter = st.selectbox(
+            "Status",
+            options=["Alle", "Nicht optimiert", "Optimiert (7 Tage)", "Optimiert (30 Tage)"],
+            key="batch_status_filter",
+            help="Filtere nach Optimierungs-Status",
+        )
+
+    # Pre-load optimization history for status filter
+    _status_opt_map: dict[int, str] = {}
+    if status_filter != "Alle":
+        _bs = BackupStore()
+        days = 7 if "7" in status_filter else 30 if "30" in status_filter else 9999
+        _status_opt_map = _bs.get_optimized_resource_ids(since_days=days)
+
     # Filter items
     if batch_filter:
         filter_terms = batch_filter.lower().split()
@@ -1713,7 +1505,13 @@ def _render_tab_batch() -> None:
     else:
         filtered_items = items_list
 
-    with batch_col3:
+    # Apply status filter
+    if status_filter == "Nicht optimiert":
+        filtered_items = [it for it in filtered_items if it["id"] not in _status_opt_map]
+    elif "Optimiert" in status_filter:
+        filtered_items = [it for it in filtered_items if it["id"] in _status_opt_map]
+
+    with batch_col4:
         st.metric("Gefiltert", f"{len(filtered_items)} / {len(items_list)}")
 
     if not filtered_items:
@@ -1958,6 +1756,64 @@ def _render_tab_batch() -> None:
     # (Bulk results are displayed at the top of the tab via _render_bulk_results)
 
 
+def _render_duplicate_check(items: list[dict]) -> None:
+    """Check for duplicate/near-duplicate SEO titles and meta descriptions."""
+    from difflib import SequenceMatcher
+
+    # Collect titles and metas from batch results
+    titles: list[tuple[str, str]] = []  # (title, product_name)
+    metas: list[tuple[str, str]] = []
+
+    for item in items:
+        seo = item.get("suggested_seo") or item.get("current_seo")
+        if not seo:
+            continue
+        name = item.get("title", "?")
+        if seo.get("seo_title"):
+            titles.append((seo["seo_title"], name))
+        if seo.get("meta_description"):
+            metas.append((seo["meta_description"], name))
+
+    # Find duplicates
+    THRESHOLD = 0.85
+    title_dupes: list[tuple[str, str, float]] = []
+    meta_dupes: list[tuple[str, str, float]] = []
+
+    for i in range(len(titles)):
+        for j in range(i + 1, len(titles)):
+            ratio = SequenceMatcher(None, titles[i][0].lower(), titles[j][0].lower()).ratio()
+            if ratio >= THRESHOLD:
+                title_dupes.append((titles[i][1], titles[j][1], ratio))
+
+    for i in range(len(metas)):
+        for j in range(i + 1, len(metas)):
+            ratio = SequenceMatcher(None, metas[i][0].lower(), metas[j][0].lower()).ratio()
+            if ratio >= THRESHOLD:
+                meta_dupes.append((metas[i][1], metas[j][1], ratio))
+
+    if not title_dupes and not meta_dupes:
+        return
+
+    with st.expander(
+        f"⚠️ Duplikat-Check: {len(title_dupes)} Titel + {len(meta_dupes)} Meta zu ähnlich",
+        expanded=False,
+    ):
+        st.caption(
+            "Google bestraft doppelte Meta-Inhalte. "
+            "Produkte mit >85% Ähnlichkeit sollten unterschiedlichere Texte bekommen."
+        )
+        if title_dupes:
+            st.markdown("**Ähnliche SEO-Titel:**")
+            for p1, p2, ratio in title_dupes[:10]:
+                pct = int(ratio * 100)
+                st.markdown(f"- **{p1}** ↔ **{p2}** — {pct}% ähnlich")
+        if meta_dupes:
+            st.markdown("**Ähnliche Meta-Beschreibungen:**")
+            for p1, p2, ratio in meta_dupes[:10]:
+                pct = int(ratio * 100)
+                st.markdown(f"- **{p1}** ↔ **{p2}** — {pct}% ähnlich")
+
+
 def _render_bulk_results(cfg: AppConfig) -> None:
     """Render bulk optimization results with publish buttons — always visible."""
     bulk_results: list[dict] = st.session_state.get("_bulk_results", [])
@@ -1971,6 +1827,9 @@ def _render_bulk_results(cfg: AppConfig) -> None:
     published_count = sum(1 for r in bulk_results if r["status"] == "veröffentlicht")
     error_count = sum(1 for r in bulk_results if r["status"] == "fehler")
     publishable_count = success_count
+
+    # --- Duplicate check ---
+    _render_duplicate_check(bulk_results)
 
     # --- Metrics ---
     r1, r2, r3 = st.columns(3)
@@ -1992,8 +1851,7 @@ def _render_bulk_results(cfg: AppConfig) -> None:
 
         # === BULK PUBLISH ALL BUTTON ===
         st.markdown(
-            '<div style="background:rgba(0,122,255,0.08);border:1px solid rgba(0,122,255,0.2);'
-            'border-radius:12px;padding:16px;margin:0.5rem 0 1rem 0;">'
+            '<div class="publish-box">'
             '<strong style="font-size:1.05rem;">Alle Vorschläge freigeben</strong><br>'
             '<span style="font-size:0.9rem;opacity:0.8;">Alle optimierten Produkte werden '
             'in Shopify übernommen. Für jedes Produkt wird vorher ein Backup erstellt.</span>'
@@ -2167,6 +2025,142 @@ def _publish_bulk_items(
     st.session_state["_bulk_results"] = bulk_results
 
 
+def _optimize_single_item(
+    item: dict,
+    resource_type: ResourceType,
+    client: ShopifyClient,
+    analyzer: SEOAnalyzer,
+    engine: SEOEngine,
+    sanitizer: HTMLSanitizer,
+    status_container,
+    step: int,
+    total: int,
+) -> dict:
+    """Optimize a single item (shared by bulk and smart optimization).
+
+    Returns a result dict with status, suggested_seo, current_seo, changes, etc.
+    """
+    from keyword_research import research_keywords
+    from datetime import datetime as _dt, timezone as _tz
+
+    product_name = item["title"][:50]
+    now_str = _dt.now(_tz.utc).strftime("%Y-%m-%d %H:%M")
+
+    result: dict = {
+        "title": item["title"],
+        "handle": item["handle"],
+        "resource_id": item["id"],
+        "resource_type": resource_type.value,
+        "status": "fehler",
+        "error": None,
+        "changes": {},
+        "backup_id": None,
+        "timestamp": now_str,
+        "suggested_seo": None,
+        "current_seo": None,
+        "collection_type": None,
+        "updated_at": None,
+    }
+
+    try:
+        # 1. Load full resource from Shopify
+        status_container.info(f"[{step}/{total}] Lade {product_name}...")
+        if resource_type == ResourceType.PRODUCT:
+            full = client.get_product(item["id"])
+        elif resource_type == ResourceType.COLLECTION:
+            full = client.get_collection(
+                item["id"], item.get("collection_type", "custom")
+            )
+        else:
+            full = client.get_page(item["id"])
+
+        current_seo = full.to_seo_data()
+
+        # 2. SEO analysis
+        status_container.info(f"[{step}/{total}] Analysiere {product_name}...")
+        try:
+            analysis = analyzer.analyze_page(item["handle"], resource_type.value)
+        except Exception:
+            analysis = None
+
+        # 3. Keyword research
+        status_container.info(f"[{step}/{total}] Keywords für {product_name}...")
+        brand = ""
+        category = ""
+        tags = ""
+        if resource_type == ResourceType.PRODUCT and isinstance(full, ShopifyProduct):
+            brand = full.vendor or ""
+            category = full.product_type or ""
+            tags = full.tags or ""
+
+        try:
+            kw_research = research_keywords(
+                product_name=item.get("title", full.title),
+                brand=brand,
+                category=category,
+                tags=tags,
+            )
+            if analysis:
+                analysis.suggested_keywords = kw_research
+        except Exception:
+            pass
+
+        # 4. KI optimization
+        status_container.info(f"[{step}/{total}] KI optimiert {product_name}... (30-90 Sek.)")
+        extra_context: dict = {}
+        if resource_type == ResourceType.PRODUCT and isinstance(full, ShopifyProduct):
+            extra_context = {
+                "vendor": full.vendor,
+                "product_type": full.product_type,
+                "tags": full.tags,
+            }
+        elif resource_type == ResourceType.COLLECTION and isinstance(full, ShopifyCollection):
+            extra_context = {"collection_type": full.collection_type}
+
+        suggested = engine.generate_seo_suggestions(
+            resource_type=resource_type,
+            current_data=current_seo,
+            title=full.title,
+            analysis=analysis,
+            extra_context=extra_context,
+        )
+
+        # 5. Sanitize HTML
+        sanitized_html, _san_warnings = sanitizer.full_check(
+            suggested.body_html, current_seo.body_html
+        )
+        suggested.body_html = sanitized_html
+
+        # Record changes
+        changes: dict = {}
+        if suggested.seo_title != current_seo.seo_title:
+            changes["SEO-Titel"] = f"{current_seo.seo_title[:30]}... → {suggested.seo_title[:30]}..."
+        if suggested.meta_description != current_seo.meta_description:
+            changes["Meta"] = f"{len(suggested.meta_description)} Zeichen (neu)"
+        if suggested.h1 != current_seo.h1:
+            changes["H1"] = f"{current_seo.h1[:30]}... → {suggested.h1[:30]}..."
+        if suggested.body_html != current_seo.body_html:
+            changes["Body"] = f"{len(suggested.body_html)} Zeichen (neu)"
+
+        result["changes"] = changes
+        result["status"] = "optimiert"
+        result["suggested_seo"] = suggested.model_dump()
+        result["current_seo"] = current_seo.model_dump()
+        result["updated_at"] = full.updated_at if hasattr(full, "updated_at") else ""
+        if resource_type == ResourceType.COLLECTION and isinstance(full, ShopifyCollection):
+            result["collection_type"] = full.collection_type
+
+        # Store full object reference for auto-publish callers
+        result["_full_resource"] = full
+
+    except Exception as exc:
+        result["error"] = str(exc)
+        result["status"] = "fehler"
+        logging.error("Optimierung fehlgeschlagen für '%s': %s", item["title"], exc)
+
+    return result
+
+
 def _run_bulk_optimization(
     cfg: AppConfig,
     resource_type: ResourceType,
@@ -2174,7 +2168,6 @@ def _run_bulk_optimization(
 ) -> None:
     """Run bulk KI optimization: analyze, optimize, and optionally publish."""
     import time as _time
-    from keyword_research import research_keywords
 
     st.markdown("---")
     st.markdown("### Bulk-Optimierung läuft...")
@@ -2218,150 +2211,49 @@ def _run_bulk_optimization(
 
     for idx, item in enumerate(items):
         step = idx + 1
-        pct = step / total
-        product_name = item["title"][:50]
-        progress.progress(pct, text=f"[{step}/{total}] {product_name}...")
+        progress.progress(step / total, text=f"[{step}/{total}] {item['title'][:50]}...")
 
-        from datetime import datetime as _dt, timezone as _tz
-        now_str = _dt.now(_tz.utc).strftime("%Y-%m-%d %H:%M")
+        result = _optimize_single_item(
+            item, resource_type, client, analyzer, engine, sanitizer,
+            status_container, step, total,
+        )
 
-        result: dict = {
-            "title": item["title"],
-            "handle": item["handle"],
-            "resource_id": item["id"],
-            "resource_type": resource_type.value,
-            "status": "fehler",
-            "error": None,
-            "changes": {},
-            "backup_id": None,
-            "timestamp": now_str,
-            "suggested_seo": None,
-            "current_seo": None,
-            "collection_type": None,
-            "updated_at": None,
-        }
+        # Auto-publish if enabled and optimization succeeded
+        if auto_publish and result["status"] == "optimiert":
+            full = result.pop("_full_resource", None)
+            if full:
+                status_container.info(f"[{step}/{total}] Veröffentliche {item['title'][:50]}...")
+                try:
+                    suggested = SEOData(**result["suggested_seo"])
+                    current_seo = SEOData(**result["current_seo"])
 
-        try:
-            # 1. Load full resource from Shopify
-            status_container.info(f"[{step}/{total}] Lade {product_name}...")
-            if resource_type == ResourceType.PRODUCT:
-                full = client.get_product(item["id"])
-            elif resource_type == ResourceType.COLLECTION:
-                full = client.get_collection(
-                    item["id"], item.get("collection_type", "custom")
-                )
-            else:
-                full = client.get_page(item["id"])
+                    # Create backup
+                    before_state = current_seo.model_dump()
+                    if resource_type == ResourceType.COLLECTION and isinstance(full, ShopifyCollection):
+                        before_state["collection_type"] = full.collection_type
+                    backup_id = backup_store.create_backup(
+                        resource_type=resource_type.value,
+                        resource_id=full.id,
+                        before_state=before_state,
+                    )
+                    result["backup_id"] = backup_id
 
-            current_seo = full.to_seo_data()
+                    # Write to Shopify
+                    updated_at = full.updated_at if hasattr(full, "updated_at") else ""
+                    if resource_type == ResourceType.PRODUCT:
+                        client.update_product(full.id, suggested, original_updated_at=updated_at)
+                    elif resource_type == ResourceType.COLLECTION:
+                        ctype = full.collection_type if isinstance(full, ShopifyCollection) else ""
+                        client.update_collection(full.id, ctype, suggested, original_updated_at=updated_at)
+                    else:
+                        client.update_page(full.id, suggested, original_updated_at=updated_at)
 
-            # 2. SEO analysis
-            status_container.info(f"[{step}/{total}] Analysiere {product_name}...")
-            try:
-                analysis = analyzer.analyze_page(item["handle"], resource_type.value)
-            except Exception:
-                analysis = None
-
-            # 3. Keyword research
-            status_container.info(f"[{step}/{total}] Keywords für {product_name}...")
-            brand = ""
-            category = ""
-            tags = ""
-            if resource_type == ResourceType.PRODUCT and isinstance(full, ShopifyProduct):
-                brand = full.vendor or ""
-                category = full.product_type or ""
-                tags = full.tags or ""
-
-            try:
-                kw_research = research_keywords(
-                    product_name=item.get("title", full.title),
-                    brand=brand,
-                    category=category,
-                    tags=tags,
-                )
-                if analysis:
-                    analysis.suggested_keywords = kw_research
-            except Exception:
-                pass
-
-            # 4. KI optimization
-            status_container.info(f"[{step}/{total}] KI optimiert {product_name}... (30-90 Sek.)")
-            extra_context: dict = {}
-            if resource_type == ResourceType.PRODUCT and isinstance(full, ShopifyProduct):
-                extra_context = {
-                    "vendor": full.vendor,
-                    "product_type": full.product_type,
-                    "tags": full.tags,
-                }
-            elif resource_type == ResourceType.COLLECTION and isinstance(full, ShopifyCollection):
-                extra_context = {"collection_type": full.collection_type}
-
-            suggested = engine.generate_seo_suggestions(
-                resource_type=resource_type,
-                current_data=current_seo,
-                title=full.title,
-                analysis=analysis,
-                extra_context=extra_context,
-            )
-
-            # 5. Sanitize HTML
-            sanitized_html, _san_warnings = sanitizer.full_check(
-                suggested.body_html, current_seo.body_html
-            )
-            suggested.body_html = sanitized_html
-
-            # Record changes
-            changes: dict = {}
-            if suggested.seo_title != current_seo.seo_title:
-                changes["SEO-Titel"] = f"{current_seo.seo_title[:30]}... → {suggested.seo_title[:30]}..."
-            if suggested.meta_description != current_seo.meta_description:
-                changes["Meta"] = f"{len(suggested.meta_description)} Zeichen (neu)"
-            if suggested.h1 != current_seo.h1:
-                changes["H1"] = f"{current_seo.h1[:30]}... → {suggested.h1[:30]}..."
-            if suggested.body_html != current_seo.body_html:
-                changes["Body"] = f"{len(suggested.body_html)} Zeichen (neu)"
-
-            result["changes"] = changes
-            result["status"] = "optimiert"
-            result["suggested_seo"] = suggested.model_dump()
-            result["current_seo"] = current_seo.model_dump()
-            result["updated_at"] = full.updated_at if hasattr(full, "updated_at") else ""
-            if resource_type == ResourceType.COLLECTION and isinstance(full, ShopifyCollection):
-                result["collection_type"] = full.collection_type
-
-            # 6. Auto-publish if enabled
-            if auto_publish:
-                status_container.info(f"[{step}/{total}] Veröffentliche {product_name}...")
-
-                # Create backup
-                before_state = current_seo.model_dump()
-                if resource_type == ResourceType.COLLECTION and isinstance(full, ShopifyCollection):
-                    before_state["collection_type"] = full.collection_type
-                backup_id = backup_store.create_backup(
-                    resource_type=resource_type.value,
-                    resource_id=full.id,
-                    before_state=before_state,
-                )
-                result["backup_id"] = backup_id
-
-                # Write to Shopify
-                updated_at = full.updated_at if hasattr(full, "updated_at") else ""
-                if resource_type == ResourceType.PRODUCT:
-                    client.update_product(full.id, suggested, original_updated_at=updated_at)
-                elif resource_type == ResourceType.COLLECTION:
-                    ctype = full.collection_type if isinstance(full, ShopifyCollection) else ""
-                    client.update_collection(full.id, ctype, suggested, original_updated_at=updated_at)
-                else:
-                    client.update_page(full.id, suggested, original_updated_at=updated_at)
-
-                # Save after state
-                backup_store.update_after_state(backup_id, suggested.model_dump())
-                result["status"] = "veröffentlicht"
-
-        except Exception as exc:
-            result["error"] = str(exc)
-            result["status"] = "fehler"
-            logging.error("Bulk-Optimierung fehlgeschlagen für '%s': %s", item["title"], exc)
+                    backup_store.update_after_state(backup_id, suggested.model_dump())
+                    result["status"] = "veröffentlicht"
+                except Exception as pub_exc:
+                    logging.error("Auto-Publish fehlgeschlagen: %s", pub_exc)
+        else:
+            result.pop("_full_resource", None)
 
         results.append(result)
 
@@ -2391,7 +2283,6 @@ def _run_smart_optimization(
 ) -> None:
     """Run KI optimization for selected products and store in smart queue."""
     import time as _time
-    from keyword_research import research_keywords
 
     st.markdown("---")
     st.markdown("### Optimierung läuft...")
@@ -2414,118 +2305,14 @@ def _run_smart_optimization(
 
     for idx, item in enumerate(items):
         step = idx + 1
-        pct = step / total
-        product_name = item["title"][:50]
-        progress.progress(pct, text=f"[{step}/{total}] {product_name}...")
+        progress.progress(step / total, text=f"[{step}/{total}] {item['title'][:50]}...")
 
-        from datetime import datetime as _dt, timezone as _tz
-        now_str = _dt.now(_tz.utc).strftime("%Y-%m-%d %H:%M")
-
-        result: dict = {
-            "title": item["title"],
-            "handle": item["handle"],
-            "resource_id": item["id"],
-            "resource_type": resource_type.value,
-            "status": "fehler",
-            "error": None,
-            "changes": {},
-            "backup_id": None,
-            "timestamp": now_str,
-            "suggested_seo": None,
-            "current_seo": None,
-            "collection_type": None,
-            "updated_at": None,
-            "review_status": "pending",
-        }
-
-        try:
-            # 1. Load full resource
-            status_container.info(f"[{step}/{total}] Lade {product_name}...")
-            if resource_type == ResourceType.PRODUCT:
-                full = client.get_product(item["id"])
-            elif resource_type == ResourceType.COLLECTION:
-                full = client.get_collection(item["id"], item.get("collection_type", "custom"))
-            else:
-                full = client.get_page(item["id"])
-
-            current_seo = full.to_seo_data()
-
-            # 2. SEO analysis
-            status_container.info(f"[{step}/{total}] Analysiere {product_name}...")
-            try:
-                analysis = analyzer.analyze_page(item["handle"], resource_type.value)
-            except Exception:
-                analysis = None
-
-            # 3. Keyword research
-            status_container.info(f"[{step}/{total}] Keywords für {product_name}...")
-            brand = ""
-            category = ""
-            tags = ""
-            if resource_type == ResourceType.PRODUCT and isinstance(full, ShopifyProduct):
-                brand = full.vendor or ""
-                category = full.product_type or ""
-                tags = full.tags or ""
-
-            try:
-                kw_research = research_keywords(
-                    product_name=item.get("title", full.title),
-                    brand=brand, category=category, tags=tags,
-                )
-                if analysis:
-                    analysis.suggested_keywords = kw_research
-            except Exception:
-                pass
-
-            # 4. KI optimization
-            status_container.info(f"[{step}/{total}] KI optimiert {product_name}... (30-90 Sek.)")
-            extra_context: dict = {}
-            if resource_type == ResourceType.PRODUCT and isinstance(full, ShopifyProduct):
-                extra_context = {
-                    "vendor": full.vendor,
-                    "product_type": full.product_type,
-                    "tags": full.tags,
-                }
-            elif resource_type == ResourceType.COLLECTION and isinstance(full, ShopifyCollection):
-                extra_context = {"collection_type": full.collection_type}
-
-            suggested = engine.generate_seo_suggestions(
-                resource_type=resource_type,
-                current_data=current_seo,
-                title=full.title,
-                analysis=analysis,
-                extra_context=extra_context,
-            )
-
-            # 5. Sanitize HTML
-            sanitized_html, _san_warnings = sanitizer.full_check(
-                suggested.body_html, current_seo.body_html
-            )
-            suggested.body_html = sanitized_html
-
-            # Record changes
-            changes: dict = {}
-            if suggested.seo_title != current_seo.seo_title:
-                changes["SEO-Titel"] = f"{current_seo.seo_title[:30]}... → {suggested.seo_title[:30]}..."
-            if suggested.meta_description != current_seo.meta_description:
-                changes["Meta"] = f"{len(suggested.meta_description)} Zeichen (neu)"
-            if suggested.h1 != current_seo.h1:
-                changes["H1"] = f"{current_seo.h1[:30]}... → {suggested.h1[:30]}..."
-            if suggested.body_html != current_seo.body_html:
-                changes["Body"] = f"{len(suggested.body_html)} Zeichen (neu)"
-
-            result["changes"] = changes
-            result["status"] = "optimiert"
-            result["suggested_seo"] = suggested.model_dump()
-            result["current_seo"] = current_seo.model_dump()
-            result["updated_at"] = full.updated_at if hasattr(full, "updated_at") else ""
-            if resource_type == ResourceType.COLLECTION and isinstance(full, ShopifyCollection):
-                result["collection_type"] = full.collection_type
-
-        except Exception as exc:
-            result["error"] = str(exc)
-            result["status"] = "fehler"
-            logging.error("Smart-Optimierung fehlgeschlagen für '%s': %s", item["title"], exc)
+        result = _optimize_single_item(
+            item, resource_type, client, analyzer, engine, sanitizer,
+            status_container, step, total,
+        )
+        result.pop("_full_resource", None)
+        result["review_status"] = "pending"
 
         results.append(result)
 
@@ -2545,16 +2332,22 @@ def _run_smart_optimization(
     st.rerun()
 
 
-def _render_smart_comparison(current_seo: dict, suggested_seo: dict) -> None:
-    """Render a detailed before/after comparison for the smart review queue."""
+def _render_smart_comparison(current_seo: dict, suggested_seo: dict, editable: bool = False, queue_idx: int = 0) -> dict | None:
+    """Render a detailed before/after comparison for the smart review queue.
+
+    When *editable* is True, the "Vorschlag" side uses input fields so the user
+    can tweak suggestions before approving.  Returns a dict of edited values
+    if editable, or None otherwise.
+    """
     from bs4 import BeautifulSoup as BS4
 
     current = SEOData(**current_seo)
     suggested = SEOData(**suggested_seo)
+    edits: dict = {}
 
     # --- SEO-Titel ---
     title_changed = current.seo_title != suggested.seo_title
-    st.markdown(f"#### SEO-Titel {'<span style=\"color:#34c759;font-size:0.8rem;\">● Geändert</span>' if title_changed else ''}", unsafe_allow_html=True)
+    st.markdown(f"#### SEO-Titel {'<span class=\"changed-badge\">● Geändert</span>' if title_changed else ''}", unsafe_allow_html=True)
     col_old, col_new = st.columns(2)
     with col_old:
         st.markdown("**Aktuell:**")
@@ -2562,14 +2355,24 @@ def _render_smart_comparison(current_seo: dict, suggested_seo: dict) -> None:
         st.caption(f"{len(current.seo_title)}/{_TITLE_MAX} Zeichen")
     with col_new:
         st.markdown("**Vorschlag:**")
-        st.code(suggested.seo_title or "(leer)")
-        title_len = len(suggested.seo_title)
-        color = "#34c759" if title_len <= _TITLE_MAX else "#ff3b30"
-        st.markdown(f'<span style="color:{color};font-size:0.85rem;">{title_len}/{_TITLE_MAX} Zeichen</span>', unsafe_allow_html=True)
+        if editable:
+            edited_title = st.text_input(
+                "SEO-Titel bearbeiten",
+                value=suggested.seo_title or "",
+                key=f"smart_edit_title_{queue_idx}",
+                label_visibility="collapsed",
+            )
+            edits["seo_title"] = edited_title
+            title_len = len(edited_title)
+        else:
+            st.code(suggested.seo_title or "(leer)")
+            title_len = len(suggested.seo_title)
+        css_cls = "char-count char-count-ok" if title_len <= _TITLE_MAX else "char-count char-count-over"
+        st.markdown(f'<span class="{css_cls}">{title_len}/{_TITLE_MAX} Zeichen</span>', unsafe_allow_html=True)
 
     # --- Meta-Beschreibung ---
     meta_changed = current.meta_description != suggested.meta_description
-    st.markdown(f"#### Meta-Beschreibung {'<span style=\"color:#34c759;font-size:0.8rem;\">● Geändert</span>' if meta_changed else ''}", unsafe_allow_html=True)
+    st.markdown(f"#### Meta-Beschreibung {'<span class=\"changed-badge\">● Geändert</span>' if meta_changed else ''}", unsafe_allow_html=True)
     col_old, col_new = st.columns(2)
     with col_old:
         st.markdown("**Aktuell:**")
@@ -2577,25 +2380,45 @@ def _render_smart_comparison(current_seo: dict, suggested_seo: dict) -> None:
         st.caption(f"{len(current.meta_description)}/{_DESC_MAX} Zeichen")
     with col_new:
         st.markdown("**Vorschlag:**")
-        st.code(suggested.meta_description or "(leer)")
-        meta_len = len(suggested.meta_description)
-        color = "#34c759" if meta_len <= _DESC_MAX else "#ff3b30"
-        st.markdown(f'<span style="color:{color};font-size:0.85rem;">{meta_len}/{_DESC_MAX} Zeichen</span>', unsafe_allow_html=True)
+        if editable:
+            edited_meta = st.text_area(
+                "Meta-Beschreibung bearbeiten",
+                value=suggested.meta_description or "",
+                key=f"smart_edit_meta_{queue_idx}",
+                label_visibility="collapsed",
+                height=100,
+            )
+            edits["meta_description"] = edited_meta
+            meta_len = len(edited_meta)
+        else:
+            st.code(suggested.meta_description or "(leer)")
+            meta_len = len(suggested.meta_description)
+        css_cls = "char-count char-count-ok" if meta_len <= _DESC_MAX else "char-count char-count-over"
+        st.markdown(f'<span class="{css_cls}">{meta_len}/{_DESC_MAX} Zeichen</span>', unsafe_allow_html=True)
 
     # --- H1 ---
     h1_changed = current.h1 != suggested.h1
-    st.markdown(f"#### H1-Überschrift {'<span style=\"color:#34c759;font-size:0.8rem;\">● Geändert</span>' if h1_changed else ''}", unsafe_allow_html=True)
+    st.markdown(f"#### H1-Überschrift {'<span class=\"changed-badge\">● Geändert</span>' if h1_changed else ''}", unsafe_allow_html=True)
     col_old, col_new = st.columns(2)
     with col_old:
         st.markdown("**Aktuell:**")
         st.code(current.h1 or "(leer)")
     with col_new:
         st.markdown("**Vorschlag:**")
-        st.code(suggested.h1 or "(leer)")
+        if editable:
+            edited_h1 = st.text_input(
+                "H1 bearbeiten",
+                value=suggested.h1 or "",
+                key=f"smart_edit_h1_{queue_idx}",
+                label_visibility="collapsed",
+            )
+            edits["h1"] = edited_h1
+        else:
+            st.code(suggested.h1 or "(leer)")
 
     # --- Body HTML ---
     body_changed = current.body_html != suggested.body_html
-    st.markdown(f"#### Body HTML {'<span style=\"color:#34c759;font-size:0.8rem;\">● Geändert</span>' if body_changed else ''}", unsafe_allow_html=True)
+    st.markdown(f"#### Body HTML {'<span class=\"changed-badge\">● Geändert</span>' if body_changed else ''}", unsafe_allow_html=True)
 
     old_text = BS4(current.body_html or "", "html.parser").get_text(separator=" ", strip=True)
     new_text = BS4(suggested.body_html or "", "html.parser").get_text(separator=" ", strip=True)
@@ -2622,7 +2445,7 @@ def _render_smart_comparison(current_seo: dict, suggested_seo: dict) -> None:
         )
         st.markdown(f"#### Bilder Alt-Texte ({img_changes}/{len(all_images)} geändert)")
 
-        for img in all_images:
+        for i, img in enumerate(all_images):
             old_alt = current_alt_map.get(img.image_id, img.current_alt) or ""
             new_alt = img.suggested_alt or old_alt
             if old_alt != new_alt:
@@ -2635,7 +2458,20 @@ def _render_smart_comparison(current_seo: dict, suggested_seo: dict) -> None:
                 with old_col:
                     st.code(old_alt or "(leer)")
                 with new_col:
-                    st.code(new_alt)
+                    if editable:
+                        edited_alt = st.text_input(
+                            f"Alt-Text Bild {i+1}",
+                            value=new_alt,
+                            key=f"smart_edit_alt_{queue_idx}_{img.image_id}",
+                            label_visibility="collapsed",
+                        )
+                        if f"image_alts" not in edits:
+                            edits["image_alts"] = {}
+                        edits["image_alts"][img.image_id] = edited_alt
+                    else:
+                        st.code(new_alt)
+
+    return edits if editable else None
 
 
 def _render_smart_review(cfg: AppConfig) -> None:
@@ -2675,10 +2511,9 @@ def _render_smart_review(cfg: AppConfig) -> None:
 
     # --- Header ---
     st.markdown(
-        f'<div style="background:rgba(0,122,255,0.08);border:1px solid rgba(0,122,255,0.2);'
-        f'border-radius:12px;padding:16px;margin-bottom:1rem;">'
-        f'<span style="font-size:1.3rem;font-weight:700;">Freigabe-Queue</span>'
-        f'<span style="float:right;font-size:1.1rem;opacity:0.8;">'
+        f'<div class="info-box-header">'
+        f'<span class="queue-title">Freigabe-Queue</span>'
+        f'<span class="queue-counter">'
         f'Produkt {reviewed + 1} von {total}</span>'
         f'</div>',
         unsafe_allow_html=True,
@@ -2708,9 +2543,13 @@ def _render_smart_review(cfg: AppConfig) -> None:
             st.rerun()
         return
 
-    # --- Detailed comparison ---
+    # --- Detailed comparison (editable!) ---
+    edits = None
     if result.get("current_seo") and result.get("suggested_seo"):
-        _render_smart_comparison(result["current_seo"], result["suggested_seo"])
+        edits = _render_smart_comparison(
+            result["current_seo"], result["suggested_seo"],
+            editable=True, queue_idx=idx,
+        )
     elif result.get("changes"):
         for key, val in result["changes"].items():
             st.markdown(f"**{key}:** {val}")
@@ -2726,6 +2565,21 @@ def _render_smart_review(cfg: AppConfig) -> None:
             use_container_width=True,
             key=f"smart_approve_{idx}",
         ):
+            # Apply inline edits to suggested_seo before publishing
+            if edits and result.get("suggested_seo"):
+                seo = result["suggested_seo"]
+                if "seo_title" in edits:
+                    seo["seo_title"] = edits["seo_title"]
+                if "meta_description" in edits:
+                    seo["meta_description"] = edits["meta_description"]
+                if "h1" in edits:
+                    seo["h1"] = edits["h1"]
+                if "image_alts" in edits and seo.get("images"):
+                    for img in seo["images"]:
+                        img_id = img.get("image_id")
+                        if img_id in edits["image_alts"]:
+                            img["suggested_alt"] = edits["image_alts"][img_id]
+
             _publish_bulk_items(cfg, queue, publish_index=idx)
             queue[idx]["review_status"] = "approved"
             st.session_state["_smart_queue_index"] = idx + 1
@@ -2764,9 +2618,8 @@ def _render_smart_review(cfg: AppConfig) -> None:
 def _render_smart_summary(queue: list[dict]) -> None:
     """Render the final summary after all products have been reviewed."""
     st.markdown(
-        '<div style="background:rgba(0,122,255,0.08);border:1px solid rgba(0,122,255,0.2);'
-        'border-radius:12px;padding:16px;margin-bottom:1rem;">'
-        '<span style="font-size:1.3rem;font-weight:700;">Freigabe abgeschlossen</span>'
+        '<div class="info-box-header">'
+        '<span class="queue-title">Freigabe abgeschlossen</span>'
         '</div>',
         unsafe_allow_html=True,
     )
@@ -3015,6 +2868,44 @@ def _render_tab_backups() -> None:
             else:
                 st.info("Keine alten Backups zum Löschen.")
 
+    # ------------------------------------------------------------------
+    # Batch-Rollback: grouped by minute-level timestamp
+    # ------------------------------------------------------------------
+    groups = backup_store.list_backup_groups(limit=20)
+    if groups:
+        st.markdown("#### Batch-Rollback")
+        st.caption(
+            "Zusammengehörige Optimierungen (gleicher Zeitpunkt) können "
+            "mit einem Klick komplett zurückgesetzt werden."
+        )
+        for gi, grp in enumerate(groups):
+            minute_label = grp["minute"].replace("T", " ")
+            type_label = grp["resource_type"]
+            count = grp["count"]
+            has_active = grp["has_active"]  # at least one not rolled back
+
+            col_info, col_action = st.columns([3, 1])
+            with col_info:
+                status_icon = "🟢" if has_active else "⏪"
+                st.markdown(
+                    f"{status_icon} **{minute_label}** — {count}× {type_label}"
+                )
+            with col_action:
+                if has_active:
+                    confirm_key = f"batch_rb_confirm_{gi}"
+                    confirmed = st.checkbox("Bestätigen", key=confirm_key)
+                    if st.button(
+                        f"Alle {count} zurücksetzen",
+                        key=f"batch_rb_btn_{gi}",
+                        disabled=not confirmed,
+                    ):
+                        _perform_batch_rollback(
+                            backup_store, grp["backup_ids"]
+                        )
+                else:
+                    st.caption("Bereits zurückgesetzt")
+        st.markdown("---")
+
     # Table
     rows = []
     for b in backups:
@@ -3055,6 +2946,77 @@ def _render_tab_backups() -> None:
                     disabled=not confirm_rb,
                 ):
                     _perform_rollback(b)
+
+
+def _perform_batch_rollback(
+    backup_store: BackupStore, backup_ids: list[int]
+) -> None:
+    """Roll back a group of backups at once (batch rollback)."""
+    cfg: AppConfig | None = st.session_state.get("config")
+    if not cfg:
+        st.error("Keine Konfiguration vorhanden.")
+        return
+
+    if st.session_state.get("write_lock"):
+        st.warning("Ein Schreibvorgang läuft bereits.")
+        return
+
+    st.session_state["write_lock"] = True
+    success_count = 0
+    fail_count = 0
+    try:
+        client = ShopifyClient(cfg)
+        progress_bar = st.progress(0, text="Batch-Rollback wird ausgeführt...")
+        total = len(backup_ids)
+
+        for idx, bid in enumerate(backup_ids):
+            entry = backup_store.get_backup(bid)
+            if entry is None or entry.rolled_back:
+                continue
+
+            restore_data = backup_store.get_restore_data(bid)
+            if not restore_data:
+                fail_count += 1
+                continue
+
+            try:
+                collection_type = restore_data.pop("collection_type", "custom")
+                seo_data = SEOData(**restore_data)
+                resource_type_str = entry.resource_type
+
+                if resource_type_str == ResourceType.PRODUCT.value:
+                    client.update_product(entry.resource_id, seo_data)
+                elif resource_type_str == ResourceType.COLLECTION.value:
+                    client.update_collection(
+                        entry.resource_id, collection_type, seo_data
+                    )
+                else:
+                    client.update_page(entry.resource_id, seo_data)
+
+                backup_store.mark_rolled_back(bid)
+                success_count += 1
+            except Exception as exc:
+                logging.warning("Rollback für Backup #%d fehlgeschlagen: %s", bid, exc)
+                fail_count += 1
+
+            progress_bar.progress(
+                (idx + 1) / total,
+                text=f"Rollback {idx + 1}/{total}...",
+            )
+
+        progress_bar.empty()
+        if success_count > 0:
+            st.success(
+                f"Batch-Rollback abgeschlossen: {success_count} erfolgreich"
+                + (f", {fail_count} fehlgeschlagen" if fail_count else "")
+            )
+        if fail_count > 0 and success_count == 0:
+            st.error(f"Alle {fail_count} Rollbacks fehlgeschlagen.")
+        st.rerun()
+    except Exception as exc:
+        st.error(f"Fehler beim Batch-Rollback: {exc}")
+    finally:
+        st.session_state["write_lock"] = False
 
 
 def _render_tab_help() -> None:
@@ -3421,8 +3383,17 @@ def main() -> None:
         if key not in st.session_state:
             st.session_state[key] = default
 
-    # Auth check
+    # Auth check — including session expiry
     if not st.session_state.get("authenticated"):
+        _show_login()
+        return
+
+    # Session expiry: auto-logout after 24 hours
+    auth_time = st.session_state.get("_auth_time", 0)
+    if auth_time and (time.time() - auth_time > _SESSION_MAX_AGE_SECONDS):
+        st.session_state["authenticated"] = False
+        st.session_state.pop("_auth_time", None)
+        st.info("Sitzung abgelaufen — bitte erneut anmelden.")
         _show_login()
         return
 
@@ -3431,14 +3402,16 @@ def main() -> None:
 
     # Main content
     st.markdown(
-        '<h1 style="font-weight:700;letter-spacing:-0.04em;font-size:2rem;'
-        'margin-bottom:0.5rem;">ShopSEO Pro</h1>',
+        '<h1 class="app-title">ShopSEO Pro</h1>',
         unsafe_allow_html=True,
     )
 
-    tab_seo, tab_batch, tab_rankings, tab_backups, tab_help = st.tabs(
-        ["SEO-Optimierung", "Batch-Analyse", "Google Rankings", "Backup-Verlauf", "Hilfe & Anleitung"]
+    tab_dashboard, tab_seo, tab_batch, tab_rankings, tab_backups, tab_help = st.tabs(
+        ["Dashboard", "SEO-Optimierung", "Batch-Analyse", "Google Rankings", "Backup-Verlauf", "Hilfe & Anleitung"]
     )
+
+    with tab_dashboard:
+        _render_tab_dashboard()
 
     with tab_seo:
         _render_tab_seo()
