@@ -110,6 +110,8 @@ class ShopifyProduct(BaseModel):
     seo_title: str = ""
     meta_description: str = ""
     updated_at: str = ""
+    status: str = "active"  # active, draft, archived
+    total_inventory: int = 0  # Sum of all variant inventory quantities
 
     def to_seo_data(self) -> SEOData:
         """Extract the current SEO state from product fields."""

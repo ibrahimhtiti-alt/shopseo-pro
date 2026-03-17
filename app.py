@@ -387,7 +387,16 @@ def _load_items(resource_type: ResourceType) -> list[dict]:
     try:
         if resource_type == ResourceType.PRODUCT:
             items = client.list_products()
-            return [{"id": p.id, "title": p.title, "handle": p.handle} for p in items]
+            return [
+                {
+                    "id": p.id,
+                    "title": p.title,
+                    "handle": p.handle,
+                    "status": getattr(p, "status", "active"),
+                    "total_inventory": getattr(p, "total_inventory", 0),
+                }
+                for p in items
+            ]
         elif resource_type == ResourceType.COLLECTION:
             items = client.list_collections()
             return [
@@ -968,7 +977,7 @@ def _render_tab_seo() -> None:
     # --- Resource selection ---
     st.markdown("### Ressource wählen")
 
-    sel_col1, sel_col2, sel_col3 = st.columns([1, 2, 1])
+    sel_col1, sel_col2, sel_col3, sel_col4 = st.columns([1, 2, 1, 1])
 
     with sel_col1:
         resource_type_label = st.selectbox(
@@ -1015,6 +1024,19 @@ def _render_tab_seo() -> None:
             help="Filtere nach Optimierungs-Status",
         )
 
+    with sel_col4:
+        stock_options = ["Alle", "Auf Lager", "Ausverkauft"]
+        if resource_type == ResourceType.PRODUCT:
+            stock_filter = st.selectbox(
+                "Lager",
+                options=stock_options,
+                key="seo_stock_filter",
+                help="Filtere nach Lagerbestand",
+            )
+        else:
+            stock_filter = "Alle"
+            st.selectbox("Lager", options=["—"], key="seo_stock_na", disabled=True)
+
     # Pre-load optimization data for status filter
     _seo_opt_map: dict[int, str] = {}
     if seo_status_filter != "Alle":
@@ -1047,6 +1069,12 @@ def _render_tab_seo() -> None:
         filtered_items = [it for it in filtered_items if it["id"] not in _seo_opt_map]
     elif "Optimiert" in seo_status_filter and "Nicht" not in seo_status_filter:
         filtered_items = [it for it in filtered_items if it["id"] in _seo_opt_map]
+
+    # Apply stock filter (only for products)
+    if stock_filter == "Auf Lager":
+        filtered_items = [it for it in filtered_items if it.get("total_inventory", 0) > 0]
+    elif stock_filter == "Ausverkauft":
+        filtered_items = [it for it in filtered_items if it.get("total_inventory", 0) <= 0]
 
     if not filtered_items:
         st.warning(f"Keine Ergebnisse für '{search_query}'.")
@@ -1506,7 +1534,7 @@ def _render_tab_batch() -> None:
     _render_bulk_results(cfg)
 
     # --- Settings row ---
-    batch_col1, batch_col2, batch_col3, batch_col4 = st.columns([1, 2, 1, 1])
+    batch_col1, batch_col2, batch_col3, batch_col3b, batch_col4 = st.columns([1, 2, 1, 1, 1])
 
     with batch_col1:
         resource_type_label = st.selectbox(
@@ -1552,6 +1580,19 @@ def _render_tab_batch() -> None:
             help="Filtere nach Optimierungs-Status",
         )
 
+    with batch_col3b:
+        batch_stock_options = ["Alle", "Auf Lager", "Ausverkauft"]
+        if resource_type == ResourceType.PRODUCT:
+            batch_stock_filter = st.selectbox(
+                "Lager",
+                options=batch_stock_options,
+                key="batch_stock_filter",
+                help="Filtere nach Lagerbestand",
+            )
+        else:
+            batch_stock_filter = "Alle"
+            st.selectbox("Lager", options=["—"], key="batch_stock_na", disabled=True)
+
     # Pre-load optimization history for status filter
     _status_opt_map: dict[int, str] = {}
     if status_filter != "Alle":
@@ -1584,6 +1625,12 @@ def _render_tab_batch() -> None:
         filtered_items = [it for it in filtered_items if it["id"] not in _status_opt_map]
     elif "Optimiert" in status_filter and "Nicht" not in status_filter:
         filtered_items = [it for it in filtered_items if it["id"] in _status_opt_map]
+
+    # Apply stock filter (only for products)
+    if batch_stock_filter == "Auf Lager":
+        filtered_items = [it for it in filtered_items if it.get("total_inventory", 0) > 0]
+    elif batch_stock_filter == "Ausverkauft":
+        filtered_items = [it for it in filtered_items if it.get("total_inventory", 0) <= 0]
 
     with batch_col4:
         st.metric("Gefiltert", f"{len(filtered_items)} / {len(items_list)}")

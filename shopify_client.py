@@ -251,18 +251,29 @@ class ShopifyClient:
         """Return a lightweight list of all products (paginated)."""
         raw = self._get_paginated(
             "products.json",
-            {"limit": limit, "fields": "id,title,handle,updated_at"},
+            {"limit": limit, "fields": "id,title,handle,updated_at,status,variants"},
             "products",
         )
-        return [
-            ShopifyProduct(
-                id=p["id"],
-                title=p.get("title", ""),
-                handle=p.get("handle", ""),
-                updated_at=p.get("updated_at", ""),
+        products: list[ShopifyProduct] = []
+        for p in raw:
+            # Calculate total inventory from variants
+            total_inv = 0
+            variants = p.get("variants") or []
+            for v in variants:
+                qty = v.get("inventory_quantity", 0)
+                if isinstance(qty, int):
+                    total_inv += qty
+            products.append(
+                ShopifyProduct(
+                    id=p["id"],
+                    title=p.get("title", ""),
+                    handle=p.get("handle", ""),
+                    updated_at=p.get("updated_at", ""),
+                    status=p.get("status", "active"),
+                    total_inventory=total_inv,
+                )
             )
-            for p in raw
-        ]
+        return products
 
     def get_product(self, product_id: int) -> ShopifyProduct:
         """Fetch a single product including SEO metafields."""
