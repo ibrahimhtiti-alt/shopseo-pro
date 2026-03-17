@@ -1519,7 +1519,15 @@ def _render_tab_batch() -> None:
     with batch_col3:
         status_filter = st.selectbox(
             "Status",
-            options=["Alle", "Nicht optimiert", "Optimiert (7 Tage)", "Optimiert (30 Tage)"],
+            options=[
+                "Alle",
+                "Nicht optimiert",
+                "Optimiert (3 Tage)",
+                "Optimiert (7 Tage)",
+                "Optimiert (30 Tage)",
+                "Nicht optimiert (3+ Tage)",
+                "Nicht optimiert (7+ Tage)",
+            ],
             key="batch_status_filter",
             help="Filtere nach Optimierungs-Status",
         )
@@ -1528,8 +1536,12 @@ def _render_tab_batch() -> None:
     _status_opt_map: dict[int, str] = {}
     if status_filter != "Alle":
         _bs = BackupStore()
-        days = 7 if "7" in status_filter else 30 if "30" in status_filter else 9999
-        _status_opt_map = _bs.get_optimized_resource_ids(since_days=days)
+        if "3 Tage" in status_filter:
+            _status_opt_map = _bs.get_optimized_resource_ids(since_days=3)
+        elif "7 Tage" in status_filter or "7+" in status_filter:
+            _status_opt_map = _bs.get_optimized_resource_ids(since_days=7)
+        elif "30 Tage" in status_filter:
+            _status_opt_map = _bs.get_optimized_resource_ids(since_days=30)
 
     # Filter items
     if batch_filter:
@@ -1546,8 +1558,11 @@ def _render_tab_batch() -> None:
 
     # Apply status filter
     if status_filter == "Nicht optimiert":
+        _all_opt = BackupStore().get_optimized_resource_ids(since_days=9999)
+        filtered_items = [it for it in filtered_items if it["id"] not in _all_opt]
+    elif "Nicht optimiert" in status_filter and "+" in status_filter:
         filtered_items = [it for it in filtered_items if it["id"] not in _status_opt_map]
-    elif "Optimiert" in status_filter:
+    elif "Optimiert" in status_filter and "Nicht" not in status_filter:
         filtered_items = [it for it in filtered_items if it["id"] in _status_opt_map]
 
     with batch_col4:
